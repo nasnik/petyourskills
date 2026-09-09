@@ -1,0 +1,132 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id            String         @id @default(uuid())
+  email         String         @unique
+  callSign      String         @map("call_sign")
+  rankTier      Int            @default(1) @map("rank_tier")
+  totalXp       Int            @default(0) @map("total_xp")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+
+  domains       LifeDomain[]
+  focusSessions FocusSession[]
+  ownedBoards   KanbanBoard[]  @relation("BoardOwner")
+  memberships   BoardMember[]
+
+  @@map("users")
+}
+
+model LifeDomain {
+  id            String        @id @default(uuid())
+  userId        String        @map("user_id")
+  name          String
+  slug          String
+  accentColor   String        @map("accent_color")
+  avatarSpecies String        @map("avatar_species")
+  level         Int           @default(1)
+  currentXp     Int           @default(0) @map("current_xp")
+  isActive      Boolean       @default(true) @map("is_active")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skillPets     SkillPet[]
+  boards        KanbanBoard[]
+  tasks         Task[]
+
+  @@map("domains")
+}
+
+model SkillPet {
+  id                      String     @id @default(uuid())
+  domainId                String     @map("domain_id")
+  title                   String
+  level                   Int        @default(1)
+  currentXp               Int        @default(0) @map("current_xp")
+  nextEvolutionThreshold  Int        @default(1000) @map("next_evolution_threshold")
+  perks                   Json?
+  planningEngineType      String     @default("DAILY_ROUTINE") @map("planning_engine_type")
+  createdAt               DateTime   @default(now()) @map("created_at")
+  updatedAt               DateTime   @updatedAt @map("updated_at")
+
+  domain                  LifeDomain @relation(fields: [domainId], references: [id], onDelete: Cascade)
+
+  @@map("skill_pets")
+}
+
+model KanbanBoard {
+  id          String        @id @default(uuid())
+  domainId    String?       @map("domain_id")
+  ownerId     String        @map("owner_id")
+  title       String
+  isShared    Boolean       @default(false) @map("is_shared")
+  passCode    String?       @map("pass_code")
+  inviteToken String?       @unique @map("invite_token")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  domain      LifeDomain?   @relation(fields: [domainId], references: [id], onDelete: SetNull)
+  owner       User          @relation("BoardOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members     BoardMember[]
+  tasks       Task[]
+
+  @@map("kanban_boards")
+}
+
+model BoardMember {
+  id        String      @id @default(uuid())
+  boardId   String      @map("board_id")
+  userId    String      @map("user_id")
+  role      String      @default("VIEWER") // OWNER, EDITOR, VIEWER
+  createdAt DateTime    @default(now()) @map("created_at")
+
+  board     KanbanBoard @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([boardId, userId])
+  @@map("board_members")
+}
+
+model Task {
+  id               String         @id @default(uuid())
+  domainId         String         @map("domain_id")
+  boardId          String?        @map("board_id")
+  title            String
+  columnId         String         @default("TODO") @map("column_id") // TODO, IN_PROGRESS, REVIEW, DONE
+  isCompleted      Boolean        @default(false) @map("is_completed")
+  doneAt           DateTime?      @map("done_at")
+  xpReward         Int            @default(25) @map("xp_reward")
+  estimatedMinutes Int?           @map("estimated_minutes")
+  repeatConfig     Json?          @map("repeat_config")
+  sortOrder        Int            @default(0) @map("sort_order")
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+
+  domain           LifeDomain     @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  board            KanbanBoard?   @relation(fields: [boardId], references: [id], onDelete: SetNull)
+  focusSessions    FocusSession[]
+
+  @@map("tasks")
+}
+
+model FocusSession {
+  id              String    @id @default(uuid())
+  userId          String    @map("user_id")
+  taskId          String?   @map("task_id")
+  durationSeconds Int       @map("duration_seconds")
+  verifiedXp      Int       @map("verified_xp")
+  startedAt       DateTime  @map("started_at")
+  completedAt     DateTime  @default(now()) @map("completed_at")
+
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task            Task?     @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  @@map("focus_sessions")
+}
