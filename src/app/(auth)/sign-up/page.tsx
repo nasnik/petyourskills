@@ -1,20 +1,31 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Sparkles, Shield, Fingerprint, ArrowRight, ShieldCheck, Loader2 } from "lucide-react";
+import { Sparkles, Shield, ArrowRight, ShieldCheck, Loader2, Users, KeyRound } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { registerUserAction } from "@/actions/auth";
+import type { GuestSessionInfo } from "@/actions/collaboration";
 
 export default function SignUpPage() {
   const router = useRouter();
-  const [callSign, setCallSign] = useState("Anastasia Nikulina");
-  const [email, setEmail] = useState("commander@agency.dev");
-  const [password, setPassword] = useState("Vanguard2026!Sec");
+  const [callSign, setCallSign] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [accepted, setAccepted] = useState(true);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [guestInfo, setGuestInfo] = useState<GuestSessionInfo | null>(null);
+
+  // Detect an anonymous guest session so we can show the upgrade banner —
+  // registerUserAction merges the shared project access automatically.
+  useEffect(() => {
+    import("@/actions/collaboration")
+      .then(({ getGuestSessionInfoAction }) => getGuestSessionInfoAction())
+      .then(setGuestInfo)
+      .catch(() => {});
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,25 +45,25 @@ export default function SignUpPage() {
 
       if (authError) {
         console.warn("Supabase Auth notice:", authError.message);
-        // If user already exists or email confirm required, we still allow local sync in dev mode
         if (authError.message.includes("already registered")) {
           setErrorMsg("User already registered in Supabase. You can sign in directly or proceed to onboarding.");
         }
       }
 
-      // 2. Register user into Neon PostgreSQL
+      // 2. Register user into Neon PostgreSQL and set pys_uid cookie
       await registerUserAction({ email, callSign });
 
-      // 3. Store email in sessionStorage for onboarding
-      sessionStorage.setItem("onboarding_email", email);
-      sessionStorage.setItem("onboarding_callsign", callSign);
+      // 3. Store in sessionStorage for onboarding redundancy
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("onboarding_email", email);
+        sessionStorage.setItem("onboarding_callsign", callSign);
+      }
 
-      // 4. Proceed to onboarding
-      router.push("/onboarding");
+      // 4. Proceed to onboarding with a clean page load
+      window.location.href = "/onboarding";
     } catch (err: unknown) {
       console.error("Sign up error:", err);
-      // Still allow onboarding in dev mode
-      router.push("/onboarding");
+      window.location.href = "/onboarding";
     } finally {
       setLoading(false);
     }
@@ -96,6 +107,19 @@ export default function SignUpPage() {
             </p>
           </div>
 
+          {guestInfo?.isGuest && (
+            <div className="p-3.5 rounded bg-wellness-emerald/10 border border-wellness-emerald/30 flex items-start gap-2.5">
+              <Users size={15} className="text-wellness-emerald shrink-0 mt-0.5" />
+              <p className="text-[11px] font-mono text-wellness-emerald leading-relaxed">
+                Upgrading guest session
+                {guestInfo.projectTitle
+                  ? ` — you keep access to “${guestInfo.projectTitle}”`
+                  : " — you keep access to your shared project"}{" "}
+                alongside your new personal skills.
+              </p>
+            </div>
+          )}
+
           {errorMsg && (
             <div className="p-3 rounded bg-danger-red/10 border border-danger-red/30 text-xs font-mono text-danger-red">
               {errorMsg}
@@ -111,8 +135,9 @@ export default function SignUpPage() {
               <input
                 type="text"
                 value={callSign}
+                placeholder="e.g. Alex Hunter"
                 onChange={(e) => setCallSign(e.target.value)}
-                className="w-full bg-obsidian-deep border border-surface-bright rounded px-3 py-2.5 text-xs font-mono text-white focus:outline-none focus:border-white"
+                className="w-full bg-obsidian-deep border border-surface-bright rounded px-3 py-2.5 text-xs font-mono text-white placeholder:text-outline/40 focus:outline-none focus:border-white"
                 required
               />
             </div>
@@ -125,8 +150,9 @@ export default function SignUpPage() {
               <input
                 type="email"
                 value={email}
+                placeholder="alex.hunter@example.com"
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-obsidian-deep border border-surface-bright rounded px-3 py-2.5 text-xs font-mono text-white focus:outline-none focus:border-white"
+                className="w-full bg-obsidian-deep border border-surface-bright rounded px-3 py-2.5 text-xs font-mono text-white placeholder:text-outline/40 focus:outline-none focus:border-white"
                 required
               />
             </div>
@@ -139,8 +165,9 @@ export default function SignUpPage() {
               <input
                 type="password"
                 value={password}
+                placeholder="••••••••••••"
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-obsidian-deep border border-surface-bright rounded px-3 py-2.5 text-xs font-mono text-white focus:outline-none focus:border-white"
+                className="w-full bg-obsidian-deep border border-surface-bright rounded px-3 py-2.5 text-xs font-mono text-white placeholder:text-outline/40 focus:outline-none focus:border-white"
                 required
               />
               {/* Strength Bars */}
@@ -196,25 +223,15 @@ export default function SignUpPage() {
               <div className="flex-1 h-px bg-white/10" />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => router.push("/onboarding")}
-                className="h-10 rounded border border-white/10 bg-surface-container-low hover:bg-surface-container hover:border-white/20 flex items-center justify-center gap-2 text-xs font-mono text-white transition-colors cursor-pointer"
-              >
-                <span className="font-bold text-sm">G</span>
-                <span>Google</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => router.push("/onboarding")}
-                className="h-10 rounded border border-white/10 bg-surface-container-low hover:bg-surface-container hover:border-white/20 flex items-center justify-center gap-2 text-xs font-mono text-white transition-colors cursor-pointer"
-              >
-                <Fingerprint size={15} className="text-secondary" />
-                <span>Passkey</span>
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => router.push("/join")}
+              title="Enter a shared-project passkey"
+              className="w-full h-10 rounded border border-wellness-emerald/30 bg-wellness-emerald/10 hover:bg-wellness-emerald/20 hover:border-wellness-emerald/50 flex items-center justify-center gap-2 text-xs font-mono text-wellness-emerald transition-colors cursor-pointer"
+            >
+              <KeyRound size={15} />
+              <span>Passkey — join a shared project</span>
+            </button>
           </div>
 
           <div className="text-center pt-2">

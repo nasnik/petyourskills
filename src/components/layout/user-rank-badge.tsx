@@ -1,12 +1,39 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import { useApp } from "@/lib/store/app-context";
 import { formatXP } from "@/lib/utils";
-import { Award } from "lucide-react";
+import { Award, Users, ArrowRight } from "lucide-react";
 
 export function UserRankBadge() {
   const { user } = useApp();
+
+  // Anonymous collaborator: scoped badge with sign-up CTA instead of XP rank
+  if (user.isAnonymous) {
+    return (
+      <div className="bg-charcoal-surface border border-wellness-emerald/25 rounded p-3.5 relative overflow-hidden">
+        <div className="flex items-center gap-1.5 text-xs mb-2 font-mono">
+          <Users size={14} className="text-wellness-emerald" />
+          <span className="font-semibold uppercase tracking-wider text-on-surface-variant">
+            Guest Collaborator
+          </span>
+        </div>
+
+        <p className="text-[11px] text-outline font-mono leading-relaxed mb-3">
+          Anonymous access — 1 shared project. Personal skills are locked.
+        </p>
+
+        <Link
+          href="/sign-up"
+          className="w-full h-8 rounded bg-wellness-emerald hover:bg-wellness-emerald/90 text-obsidian-deep font-bold text-[10px] font-mono uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all shadow-[0_0_12px_rgba(16,185,129,0.25)] active:scale-[0.98]"
+        >
+          <span>Sign Up to Add Skills</span>
+          <ArrowRight size={12} />
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-charcoal-surface border border-white/10 rounded p-3.5 relative overflow-hidden">

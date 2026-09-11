@@ -7,13 +7,15 @@ generator client {
 }
 
 model User {
-  id            String         @id @default(uuid())
-  email         String         @unique
-  callSign      String         @map("call_sign")
-  rankTier      Int            @default(1) @map("rank_tier")
-  totalXp       Int            @default(0) @map("total_xp")
-  createdAt     DateTime       @default(now()) @map("created_at")
-  updatedAt     DateTime       @updatedAt @map("updated_at")
+  id              String         @id @default(uuid())
+  email           String         @unique
+  callSign        String         @map("call_sign")
+  rankTier        Int            @default(1) @map("rank_tier")
+  totalXp         Int            @default(0) @map("total_xp")
+  isAnonymous     Boolean        @default(false) @map("is_anonymous")
+  sharedProjectId String?        @map("shared_project_id")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
 
   domains       LifeDomain[]
   focusSessions FocusSession[]
@@ -75,7 +77,6 @@ model KanbanBoard {
   domain      LifeDomain?   @relation(fields: [domainId], references: [id], onDelete: SetNull)
   owner       User          @relation("BoardOwner", fields: [ownerId], references: [id], onDelete: Cascade)
   members     BoardMember[]
-  tasks       Task[]
 
   @@map("kanban_boards")
 }
@@ -97,6 +98,9 @@ model BoardMember {
 model Task {
   id               String         @id @default(uuid())
   domainId         String         @map("domain_id")
+  /// Polymorphic project reference: a KanbanBoard id, a MULTI_TASK root Task
+  /// id, or a SkillPet id. Enforced at the application level — no DB FK by
+  /// design, so cards can attach to any project identity.
   boardId          String?        @map("board_id")
   title            String
   columnId         String         @default("TODO") @map("column_id") // TODO, IN_PROGRESS, REVIEW, DONE
@@ -110,7 +114,6 @@ model Task {
   updatedAt        DateTime       @updatedAt @map("updated_at")
 
   domain           LifeDomain     @relation(fields: [domainId], references: [id], onDelete: Cascade)
-  board            KanbanBoard?   @relation(fields: [boardId], references: [id], onDelete: SetNull)
   focusSessions    FocusSession[]
 
   @@map("tasks")

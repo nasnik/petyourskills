@@ -3,13 +3,13 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Sparkles, Fingerprint, Eye, EyeOff, ShieldCheck, ArrowRight, Loader2, Zap } from "lucide-react";
+import { Sparkles, Eye, EyeOff, ShieldCheck, ArrowRight, Loader2, Zap, KeyRound } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 export default function SignInPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("commander@agency.dev");
-  const [password, setPassword] = useState("Vanguard2026!Sec");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -31,26 +31,31 @@ export default function SignInPage() {
         // If credentials aren't in Supabase yet, explain and offer instant demo entry
         setErrorMsg(`${error.message} (Tip: If testing without email verification, use "Quick Demo Entry" below).`);
       } else {
-        router.push("/dashboard");
+        try {
+          const { syncUserSessionAction } = await import("@/actions/auth");
+          await syncUserSessionAction({ email });
+        } catch {}
+        window.location.href = "/dashboard";
       }
     } catch (err: unknown) {
       console.error("Sign in error:", err);
-      router.push("/dashboard");
+      window.location.href = "/dashboard";
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDemoSignIn = () => {
-    router.push("/dashboard");
+  const handleDemoSignIn = async () => {
+    try {
+      const { syncUserSessionAction } = await import("@/actions/auth");
+      await syncUserSessionAction({ email: "commander@agency.dev" });
+    } catch {}
+    window.location.href = "/dashboard";
   };
 
+  // Project passkey entry — leads to the shared-project join flow
   const handlePasskey = () => {
-    router.push("/dashboard");
-  };
-
-  const handleGoogle = () => {
-    router.push("/dashboard");
+    router.push("/join");
   };
 
   return (
@@ -90,14 +95,6 @@ export default function SignInPage() {
             <h1 className="text-2xl font-bold text-white tracking-tight font-hanken">
               Sign In to Pet Your Skills
             </h1>
-            <p className="text-xs text-outline font-mono mt-1.5 leading-relaxed">
-              Welcome back, Commander. Reconnect with your companions and resume your focus sessions.
-            </p>
-
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-wellness-emerald/10 border border-wellness-emerald/30 text-[11px] font-mono text-wellness-emerald mt-3">
-              <span className="w-1.5 h-1.5 rounded-full bg-wellness-emerald" />
-              <span>Vitality Wolf · LVL 2 ACTIVE</span>
-            </div>
           </div>
 
           {errorMsg && (
@@ -208,25 +205,15 @@ export default function SignInPage() {
               <div className="flex-1 h-px bg-white/10" />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={handlePasskey}
-                className="h-10 rounded border border-white/10 bg-surface-container-low hover:bg-surface-container hover:border-white/20 flex items-center justify-center gap-2 text-xs font-mono text-white transition-colors cursor-pointer"
-              >
-                <Fingerprint size={15} className="text-secondary" />
-                <span>Passkey</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleGoogle}
-                className="h-10 rounded border border-white/10 bg-surface-container-low hover:bg-surface-container hover:border-white/20 flex items-center justify-center gap-2 text-xs font-mono text-white transition-colors cursor-pointer"
-              >
-                <span className="font-bold text-sm">G</span>
-                <span>Google</span>
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={handlePasskey}
+              title="Enter a shared-project passkey"
+              className="w-full h-10 rounded border border-wellness-emerald/30 bg-wellness-emerald/10 hover:bg-wellness-emerald/20 hover:border-wellness-emerald/50 flex items-center justify-center gap-2 text-xs font-mono text-wellness-emerald transition-colors cursor-pointer"
+            >
+              <KeyRound size={15} />
+              <span>Passkey — join a shared project</span>
+            </button>
           </div>
 
           <div className="text-center pt-2">

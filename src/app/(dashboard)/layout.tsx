@@ -1,19 +1,22 @@
-"use client";
-
 import React from "react";
 import { AppProvider } from "@/lib/store/app-context";
 import { Sidebar } from "@/components/layout/sidebar";
 import { FocusTimerModal } from "@/components/focus/focus-timer-modal";
 import { TaskInspectorDrawer } from "@/components/inspector/task-inspector-drawer";
-import { Sparkles, User } from "lucide-react";
+import { CreateTaskModal } from "@/components/dashboard/create-task-modal";
+import { UpgradeAccountModal } from "@/components/layout/upgrade-account-modal";
+import { UserHeaderPill } from "@/components/layout/user-header-pill";
+import { fetchDashboardSeedData } from "@/lib/dashboard-seed";
 
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const { user, domains, tasks } = await fetchDashboardSeedData();
+
   return (
-    <AppProvider>
+    <AppProvider initialUser={user} initialDomains={domains} initialTasks={tasks}>
       <div className="flex h-screen w-screen overflow-hidden bg-obsidian-deep text-on-surface">
         {/* Persistent Left Sidebar */}
         <Sidebar />
@@ -27,25 +30,8 @@ export default function DashboardLayout({
               <span>TLS 1.3 Encrypted Session</span>
             </div>
 
-            {/* User Profile Pill */}
-            <div className="flex items-center gap-3 bg-surface-container-lowest px-3 py-1.5 rounded-full border border-white/10">
-              <div className="w-7 h-7 rounded-full bg-wellness-emerald/20 border border-wellness-emerald/40 flex items-center justify-center text-xs font-bold text-wellness-emerald">
-                AN
-              </div>
-              <div className="flex flex-col">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-bold text-white leading-tight">
-                    Anastasia Nikulina
-                  </span>
-                  <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-wellness-emerald/20 text-wellness-emerald font-semibold">
-                    PRO
-                  </span>
-                </div>
-                <span className="text-[10px] font-mono text-outline leading-tight">
-                  commander@agency.dev
-                </span>
-              </div>
-            </div>
+            {/* User Profile Pill — reads real user from context */}
+            <UserHeaderPill />
           </header>
 
           {/* Page View Canvas */}
@@ -61,6 +47,12 @@ export default function DashboardLayout({
 
         {/* Global Task Inspector Drawer */}
         <TaskInspectorDrawer />
+
+        {/* Global Create Task / Skill Modal */}
+        <CreateTaskModal />
+
+        {/* Guest Upgrade Explainer Modal */}
+        <UpgradeAccountModal />
       </div>
     </AppProvider>
   );

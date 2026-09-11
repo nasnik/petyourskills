@@ -17,6 +17,18 @@ import {
   Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  SkillScheduleConfig,
+  getTodayString,
+  addDaysToString,
+} from "@/components/shared/skill-schedule-config";
+import { SkillRepeatConfig } from "@/types";
+
+interface OnboardingSkillItem {
+  title: string;
+  engine: "DAILY_ROUTINE" | "MULTI_TASK" | "CUSTOM_SCHEDULE" | "SPECIFIC_DATE";
+  repeatConfig: SkillRepeatConfig;
+}
 
 const DOMAIN_OPTIONS = [
   {
@@ -58,7 +70,7 @@ const DOMAIN_OPTIONS = [
     id: "custom",
     title: "Add Your Custom Domain",
     desc: "Define a unique area of mastery specific to your lifestyle.",
-    color: "#ffffff",
+    color: "#06B6D4",
     icon: PlusCircle,
   },
 ];
@@ -82,6 +94,8 @@ export default function OnboardingWizard() {
     "work",
     "learning",
   ]);
+  const [customDomainName, setCustomDomainName] = useState("");
+  const [customDomainColor, setCustomDomainColor] = useState("#06B6D4");
 
   // Step 2: Companion assignments (domainId -> companionId)
   const [assignedCompanions, setAssignedCompanions] = useState<Record<string, string>>({
@@ -91,19 +105,118 @@ export default function OnboardingWizard() {
   });
 
   // Step 3: Skill definitions
-  const [skills, setSkills] = useState<Record<string, { title: string; engine: string }>>({
-    work: { title: "Frontend Engineering", engine: "DAILY_ROUTINE" },
-    health: { title: "Marathon Training", engine: "CUSTOM_SCHEDULE" },
-    learning: { title: "Next.js 15 & System Architecture", engine: "MULTI_TASK" },
+  const [skills, setSkills] = useState<Record<string, OnboardingSkillItem>>({
+    work: {
+      title: "Frontend Engineering",
+      engine: "DAILY_ROUTINE",
+      repeatConfig: {
+        engine: "DAILY_ROUTINE",
+        frequency: "daily",
+      },
+    },
+    health: {
+      title: "Marathon Training",
+      engine: "CUSTOM_SCHEDULE",
+      repeatConfig: {
+        engine: "CUSTOM_SCHEDULE",
+        frequency: "weekdays",
+        scheduleType: "weekdays",
+        days: ["M", "T", "W", "Th", "F"],
+      },
+    },
+    learning: {
+      title: "Next.js 15 & System Architecture",
+      engine: "MULTI_TASK",
+      repeatConfig: {
+        engine: "MULTI_TASK",
+        frequency: "multi_task",
+        startDate: getTodayString(),
+        endDate: addDaysToString(getTodayString(), 7),
+        durationPreset: "1 Week",
+      },
+    },
   });
 
+  const handleEngineChange = (
+    domainId: string,
+    newEngine: "DAILY_ROUTINE" | "MULTI_TASK" | "CUSTOM_SCHEDULE" | "SPECIFIC_DATE"
+  ) => {
+    setSkills((prev) => {
+      const current = prev[domainId] || {
+        title:
+          domainId === "custom" && customDomainName.trim()
+            ? `${customDomainName.trim()} Mastery`
+            : "Daily Discipline Routine",
+        engine: "DAILY_ROUTINE",
+        repeatConfig: { engine: "DAILY_ROUTINE", frequency: "daily" },
+      };
+      return {
+        ...prev,
+        [domainId]: {
+          ...current,
+          engine: newEngine,
+          repeatConfig: {
+            ...current.repeatConfig,
+            engine: newEngine,
+            frequency:
+              newEngine === "DAILY_ROUTINE"
+                ? "daily"
+                : newEngine === "SPECIFIC_DATE"
+                ? "specific_date"
+                : newEngine === "MULTI_TASK"
+                ? "multi_task"
+                : current.repeatConfig?.scheduleType === "weekdays"
+                ? "weekdays"
+                : current.repeatConfig?.scheduleType === "weekends"
+                ? "weekends"
+                : "custom",
+            specificDate: current.repeatConfig?.specificDate || getTodayString(),
+            startDate: current.repeatConfig?.startDate || getTodayString(),
+            endDate:
+              current.repeatConfig?.endDate ||
+              addDaysToString(current.repeatConfig?.startDate || getTodayString(), 7),
+            days: current.repeatConfig?.days || ["M", "T", "W", "Th", "F"],
+          },
+        },
+      };
+    });
+  };
+
   const [isLaunching, setIsLaunching] = useState(false);
+
+  const getDomainMeta = (domainId: string) => {
+    if (domainId === "custom") {
+      return {
+        id: "custom",
+        title: customDomainName.trim() || "Custom Domain",
+        desc: "Define a unique area of mastery specific to your lifestyle.",
+        color: customDomainColor,
+        icon: PlusCircle,
+      };
+    }
+    const found = DOMAIN_OPTIONS.find((d) => d.id === domainId);
+    return (
+      found || {
+        id: domainId,
+        title: domainId,
+        desc: "",
+        color: "#ffffff",
+        icon: PlusCircle,
+      }
+    );
+  };
 
   const toggleDomain = (id: string) => {
     if (selectedDomains.includes(id)) {
       setSelectedDomains(selectedDomains.filter((d) => d !== id));
     } else {
       setSelectedDomains([...selectedDomains, id]);
+      if (!assignedCompanions[id]) {
+        setAssignedCompanions((prev) => ({
+          ...prev,
+          [id]: id === "custom" ? "mystery-egg" : "wisdom-owl",
+        }));
+      }
     }
   };
 
@@ -112,16 +225,21 @@ export default function OnboardingWizard() {
     try {
       const { saveOnboardingAction } = await import("@/actions/auth");
       const email = typeof window !== "undefined" ? sessionStorage.getItem("onboarding_email") || undefined : undefined;
-      await saveOnboardingAction({
-        email,
+      const res = await saveOnboardingAction({
         selectedDomains,
         assignedCompanions,
         skills,
+        email,
+        customDomainName: customDomainName.trim() || "Custom Domain",
+        customDomainColor,
       });
+      if (!res?.success) {
+        console.warn("Save onboarding warning:", res?.error);
+      }
     } catch (e) {
       console.error("Failed to save onboarding:", e);
     }
-    router.push("/dashboard");
+    window.location.href = "/dashboard";
   };
 
   return (
@@ -208,15 +326,17 @@ export default function OnboardingWizard() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {DOMAIN_OPTIONS.map((item) => {
-              const Icon = item.icon;
+              const isCustom = item.id === "custom";
               const isSelected = selectedDomains.includes(item.id);
+              const cardColor = isCustom && isSelected ? customDomainColor : item.color;
+              const Icon = item.icon;
 
               return (
                 <div
                   key={item.id}
                   onClick={() => toggleDomain(item.id)}
                   className={cn(
-                    "p-5 rounded border transition-all duration-200 cursor-pointer flex flex-col justify-between h-44",
+                    "p-5 rounded border transition-all duration-200 cursor-pointer flex flex-col justify-between min-h-[11rem]",
                     isSelected
                       ? "bg-charcoal-surface border-white/40 shadow-[0_0_20px_rgba(255,255,255,0.06)]"
                       : "bg-surface-container-lowest/50 border-white/10 hover:border-white/20"
@@ -224,10 +344,10 @@ export default function OnboardingWizard() {
                 >
                   <div className="flex items-start justify-between">
                     <div
-                      className="w-9 h-9 rounded flex items-center justify-center"
+                      className="w-9 h-9 rounded flex items-center justify-center transition-colors"
                       style={{
-                        backgroundColor: `${item.color}20`,
-                        color: item.color,
+                        backgroundColor: `${cardColor}20`,
+                        color: cardColor,
                       }}
                     >
                       <Icon size={18} />
@@ -245,13 +365,51 @@ export default function OnboardingWizard() {
                     </div>
                   </div>
 
-                  <div>
-                    <h3 className="font-bold text-sm text-white mb-1">
-                      {item.title}
-                    </h3>
-                    <p className="text-xs text-outline leading-relaxed">
-                      {item.desc}
-                    </p>
+                  <div className="mt-3">
+                    {isCustom && isSelected ? (
+                      <div className="space-y-2.5" onClick={(e) => e.stopPropagation()}>
+                        <div>
+                          <label className="text-[11px] font-mono uppercase font-bold text-white tracking-wider block mb-1">
+                            Custom Domain Name
+                          </label>
+                          <input
+                            type="text"
+                            value={customDomainName}
+                            onChange={(e) => setCustomDomainName(e.target.value)}
+                            placeholder="e.g. Creative Writing, Investing"
+                            autoFocus
+                            className="w-full bg-obsidian-deep border border-white/25 focus:border-wellness-emerald rounded px-2.5 py-1.5 text-xs font-mono text-white placeholder:text-outline/40 outline-none transition-colors"
+                          />
+                        </div>
+
+                        <div className="flex items-center gap-1.5 pt-0.5">
+                          <span className="text-[10px] font-mono text-outline mr-1">Color:</span>
+                          {["#06B6D4", "#EC4899", "#10B981", "#F59E0B", "#8B5CF6", "#3B82F6"].map((col) => (
+                            <button
+                              key={col}
+                              type="button"
+                              onClick={() => setCustomDomainColor(col)}
+                              className={cn(
+                                "w-4 h-4 rounded-full transition-transform cursor-pointer",
+                                customDomainColor === col
+                                  ? "scale-125 ring-2 ring-white ring-offset-1 ring-offset-charcoal-surface"
+                                  : "opacity-60 hover:opacity-100"
+                              )}
+                              style={{ backgroundColor: col }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <h3 className="font-bold text-sm text-white mb-1">
+                          {isCustom && customDomainName.trim() ? customDomainName.trim() : item.title}
+                        </h3>
+                        <p className="text-xs text-outline leading-relaxed">
+                          {item.desc}
+                        </p>
+                      </>
+                    )}
                   </div>
                 </div>
               );
@@ -285,8 +443,7 @@ export default function OnboardingWizard() {
 
           <div className="space-y-6">
             {selectedDomains.map((domainId) => {
-              const domain = DOMAIN_OPTIONS.find((d) => d.id === domainId);
-              if (!domain) return null;
+              const domain = getDomainMeta(domainId);
 
               return (
                 <div
@@ -372,13 +529,20 @@ export default function OnboardingWizard() {
           </div>
 
           <div className="space-y-6">
-            {selectedDomains.slice(0, 2).map((domainId) => {
-              const domain = DOMAIN_OPTIONS.find((d) => d.id === domainId);
+            {selectedDomains.map((domainId) => {
+              const domain = getDomainMeta(domainId);
               const compId = assignedCompanions[domainId] || "wisdom-owl";
               const companion = COMPANIONS.find((c) => c.id === compId);
               const skillData = skills[domainId] || {
-                title: "Daily Discipline Routine",
+                title:
+                  domainId === "custom" && customDomainName.trim()
+                    ? `${customDomainName.trim()} Mastery`
+                    : "Daily Discipline Routine",
                 engine: "DAILY_ROUTINE",
+                repeatConfig: {
+                  engine: "DAILY_ROUTINE",
+                  frequency: "daily",
+                },
               };
 
               return (
@@ -457,15 +621,19 @@ export default function OnboardingWizard() {
                         <div
                           key={eng.id}
                           onClick={() =>
-                            setSkills((prev) => ({
-                              ...prev,
-                              [domainId]: { ...skillData, engine: eng.id },
-                            }))
+                            handleEngineChange(
+                              domainId,
+                              eng.id as
+                                | "DAILY_ROUTINE"
+                                | "MULTI_TASK"
+                                | "CUSTOM_SCHEDULE"
+                                | "SPECIFIC_DATE"
+                            )
                           }
                           className={cn(
                             "p-3 rounded border cursor-pointer transition-all",
                             skillData.engine === eng.id
-                              ? "bg-obsidian-deep border-white text-white"
+                              ? "bg-obsidian-deep border-white text-white shadow-md ring-1 ring-white/20"
                               : "bg-surface-container-lowest border-white/5 text-outline hover:border-white/20 hover:text-white"
                           )}
                         >
@@ -477,6 +645,24 @@ export default function OnboardingWizard() {
                           </div>
                         </div>
                       ))}
+                    </div>
+
+                    {/* Dynamic Schedule & Date Configurator */}
+                    <div className="mt-3.5">
+                      <SkillScheduleConfig
+                        engine={skillData.engine}
+                        config={skillData.repeatConfig || { engine: skillData.engine }}
+                        onChange={(newConfig) => {
+                          setSkills((prev) => ({
+                            ...prev,
+                            [domainId]: {
+                              ...skillData,
+                              repeatConfig: newConfig,
+                            },
+                          }));
+                        }}
+                        accentColor={domain?.color || "#10B981"}
+                      />
                     </div>
                   </div>
                 </div>

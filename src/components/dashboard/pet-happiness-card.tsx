@@ -2,8 +2,13 @@
 
 import React from "react";
 import { Sparkles } from "lucide-react";
+import { useApp } from "@/lib/store/app-context";
 
 export function PetHappinessCard() {
+  const { domains } = useApp();
+  const activeDomain = domains.find((d) => d.slug === "health") || domains[0];
+  const petName = activeDomain?.avatarSpecies || "Your companion";
+
   return (
     <div className="bg-charcoal-surface border border-white/10 rounded p-4 flex items-center gap-3.5 relative overflow-hidden">
       <div className="w-12 h-12 rounded bg-[#F59E0B]/15 border border-[#F59E0B]/30 flex items-center justify-center text-[#F59E0B] shrink-0 shadow-[0_0_15px_rgba(245,158,11,0.2)]">
@@ -15,7 +20,7 @@ export function PetHappinessCard() {
           Pet Happiness
         </span>
         <div className="text-sm font-semibold text-white leading-snug">
-          Vitality Wolf is feeling motivated!
+          {petName} is feeling motivated!
         </div>
         <div className="flex items-center gap-1.5 text-xs font-mono text-white/90 mt-1">
           <span className="text-[#F59E0B] font-semibold">Mood: Radiant</span>

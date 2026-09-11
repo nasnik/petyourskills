@@ -30,6 +30,21 @@ export interface SkillPetItem {
   planningEngineType: "DAILY_ROUTINE" | "MULTI_TASK" | "CUSTOM_SCHEDULE" | "SPECIFIC_DATE";
 }
 
+export interface SkillRepeatConfig {
+  [key: string]: unknown;
+  frequency?: "daily" | "weekdays" | "weekends" | "custom" | "specific_date" | "multi_task";
+  days?: string[];
+  time?: string;
+  engine?: "DAILY_ROUTINE" | "MULTI_TASK" | "CUSTOM_SCHEDULE" | "SPECIFIC_DATE" | string;
+  specificDate?: string; // YYYY-MM-DD for One-off / SPECIFIC_DATE
+  scheduleType?: "days_of_week" | "weekdays" | "weekends" | "custom_dates";
+  customDates?: string[]; // Array of YYYY-MM-DD for particular multiple dates
+  startDate?: string; // YYYY-MM-DD for Multi-task project
+  endDate?: string; // YYYY-MM-DD for Multi-task project
+  durationPreset?: string; // e.g. "1 week", "2 weeks", "1 month", "custom"
+  excludedDates?: string[]; // Array of YYYY-MM-DD dates excluded from schedule
+}
+
 export interface TaskItem {
   id: string;
   domainId: string;
@@ -40,13 +55,10 @@ export interface TaskItem {
   doneAt?: string | null;
   xpReward: number;
   estimatedMinutes?: number | null;
-  repeatConfig?: {
-    frequency?: "daily" | "weekdays" | "weekends" | "custom";
-    days?: string[];
-    time?: string;
-  } | null;
+  repeatConfig?: SkillRepeatConfig | null;
   sortOrder: number;
   domain?: LifeDomainItem;
+  planningEngineType?: "DAILY_ROUTINE" | "MULTI_TASK" | "CUSTOM_SCHEDULE" | "SPECIFIC_DATE";
 }
 
 export interface FocusSessionItem {
@@ -80,4 +92,6 @@ export interface UserProfile {
   totalXp: number;
   tierProgress: number; // 0 to 100%
   nextTierXp: number;
+  isAnonymous?: boolean;
+  sharedProjectId?: string | null;
 }

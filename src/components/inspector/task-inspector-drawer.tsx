@@ -15,6 +15,7 @@ import {
   Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatFriendlyDate } from "@/components/shared/skill-schedule-config";
 
 export function TaskInspectorDrawer() {
   const {
@@ -210,9 +211,23 @@ export function TaskInspectorDrawer() {
               <div className="flex items-center justify-between text-xs font-mono">
                 <span className="text-outline flex items-center gap-1.5">
                   <Calendar size={13} />
-                  Scheduled Date:
+                  Schedule / Date:
                 </span>
-                <span className="text-white">Monday, September 7, 2026</span>
+                <span className="text-white font-medium">
+                  {inspectingTask.repeatConfig?.specificDate
+                    ? formatFriendlyDate(inspectingTask.repeatConfig.specificDate)
+                    : inspectingTask.repeatConfig?.startDate && inspectingTask.repeatConfig?.endDate
+                    ? `${formatFriendlyDate(inspectingTask.repeatConfig.startDate)} → ${formatFriendlyDate(inspectingTask.repeatConfig.endDate)}`
+                    : inspectingTask.repeatConfig?.customDates?.length
+                    ? `${inspectingTask.repeatConfig.customDates.length} Specific Dates`
+                    : inspectingTask.repeatConfig?.scheduleType === "weekdays"
+                    ? "Weekdays (M-F)"
+                    : inspectingTask.repeatConfig?.scheduleType === "weekends"
+                    ? "Weekends (Sat-Sun)"
+                    : inspectingTask.repeatConfig?.days?.length
+                    ? inspectingTask.repeatConfig.days.join(", ")
+                    : "Daily Routine"}
+                </span>
               </div>
 
               <div className="flex items-center justify-between text-xs font-mono pt-1 border-t border-white/5">

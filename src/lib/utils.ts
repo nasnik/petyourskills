@@ -6,7 +6,7 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatXP(xp: number): string {
-  return new Intl.NumberFormat().format(xp);
+  return new Intl.NumberFormat("en-US").format(xp);
 }
 
 export function formatDuration(seconds: number): string {
