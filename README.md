@@ -58,6 +58,23 @@ npm run dev    # http://localhost:3000
 
 Other scripts: `npm run build`, `npm start`, `npm run lint`.
 
+## Testing
+
+```bash
+npm test           # Jest unit tests (passkey logic, XP/gamification engine)
+npm run test:e2e   # Playwright E2E — boots its own demo-mode server on :3210
+```
+
+- **Unit (Jest)**: pure business logic — passcode derivation/normalization/matching
+  (`src/lib/collaboration.test.ts`) and rank tiers + anti-exploit focus-session
+  verification (`src/lib/gamification/xp-engine.test.ts`).
+- **E2E (Playwright)**: landing/sign-in rendering, Instant Demo Entry → dashboard,
+  the passkey join flow (invalid format, unknown passkey, `CYS-8941` guest join,
+  scoped board access with personal routes hidden).
+- E2E runs in **demo mode**: `scripts/e2e-server.js` launches the dev server with
+  placeholder env vars, so tests never touch your real Neon/Supabase project — no
+  credentials or seeded database needed. First run: `npx playwright install chromium`.
+
 ## Passkey Collaboration (Group Projects)
 
 The sharing flow works end-to-end without the guest needing an account:

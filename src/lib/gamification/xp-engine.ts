@@ -17,11 +17,14 @@ export const RANK_TIERS = [
 ];
 
 export function calculateUserRank(totalXp: number): RankInfo {
+  // Defensive clamp: negative XP (data corruption, rollback edge cases) must
+  // never fall through to the Sovereign fallback — it belongs to Tier 1.
+  const xp = Math.max(0, totalXp);
   for (let i = 0; i < RANK_TIERS.length; i++) {
     const r = RANK_TIERS[i];
-    if (totalXp >= r.minXp && totalXp < r.maxXp) {
+    if (xp >= r.minXp && xp < r.maxXp) {
       const range = r.maxXp - r.minXp;
-      const current = totalXp - r.minXp;
+      const current = xp - r.minXp;
       const progressPercent = Math.min(100, Math.round((current / range) * 100));
       return {
         tier: r.tier,
