@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { useApp } from "@/lib/store/app-context";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Clock, CheckCircle2, Plus, Calendar, CalendarDays, Layers, RotateCcw } from "lucide-react";
+import { Clock, CheckCircle2, Plus, Calendar, CalendarDays, Layers, RotateCcw, Play } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatFriendlyDate } from "@/components/shared/skill-schedule-config";
 import { TaskItem } from "@/types";
@@ -58,7 +58,7 @@ function getScheduleBadge(task: TaskItem) {
 }
 
 export function QuestList() {
-  const { tasks, domains, toggleTaskComplete, openTaskInspector, openCreateTaskModal } = useApp();
+  const { tasks, domains, toggleTaskComplete, openTaskInspector, openCreateTaskModal, openFocusModal } = useApp();
   const [filter, setFilter] = useState<"ALL" | "PENDING" | "COMPLETED">("ALL");
 
   const filteredTasks = tasks.filter((task) => {
@@ -239,6 +239,17 @@ export function QuestList() {
                 >
                   +{task.xpReward} XP
                 </div>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openFocusModal(task);
+                  }}
+                  className="p-1 rounded text-wellness-emerald hover:bg-wellness-emerald/15 transition-all cursor-pointer shrink-0"
+                  title="Focus on this quest"
+                >
+                  <Play size={13} className="fill-wellness-emerald" />
+                </button>
               </div>
             );
           })

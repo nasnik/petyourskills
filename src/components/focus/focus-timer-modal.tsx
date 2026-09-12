@@ -15,6 +15,7 @@ export function FocusTimerModal() {
     tasks,
     recordCompletedFocus,
     domains,
+    setFocusTargetTask,
   } = useApp();
 
   const [selectedDuration, setSelectedDuration] = useState<number>(25 * 60); // 25 min
@@ -30,38 +31,31 @@ export function FocusTimerModal() {
   useEffect(() => {
     if (focusTargetTask) {
       setSelectedTaskId(focusTargetTask.id);
-      if (focusTargetTask.estimatedMinutes) {
-        const dur = focusTargetTask.estimatedMinutes * 60;
-        setSelectedDuration(dur);
-        setRemaining(dur);
-      }
+      const dur = focusTargetTask.estimatedMinutes ? focusTargetTask.estimatedMinutes * 60 : 25 * 60;
+      setSelectedDuration(dur);
+      setRemaining(dur);
+      setIsRunning(false);
+      setStartedAt(null);
+      setSessionCompleted(false);
+      setEarnedXp(0);
     } else if (tasks.length > 0) {
       setSelectedTaskId(tasks[0].id);
     }
   }, [focusTargetTask, tasks]);
 
-  // Timer Tick
-  useEffect(() => {
-    if (isRunning) {
-      timerRef.current = setInterval(() => {
-        setRemaining((prev) => {
-          if (prev <= 1) {
-            handleSessionFinish();
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    } else {
-      if (timerRef.current) clearInterval(timerRef.current);
-    }
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [isRunning]);
+  const clearModalState = () => {
+    setFocusTargetTask(null);
+    closeFocusModal();
+    setIsRunning(false);
+    setStartedAt(null);
+    setSessionCompleted(false);
+    setEarnedXp(0);
+  }
 
   const activeTask = tasks.find((t) => t.id === selectedTaskId);
   const activeDomain = domains.find((d) => d.id === activeTask?.domainId) || domains[0];
+  const displayTask = focusTargetTask || activeTask;
+  const displayDomain = domains.find((d) => d.id === displayTask?.domainId) || domains[0];
 
   const handleStart = () => {
     if (!startedAt) {
@@ -95,7 +89,7 @@ export function FocusTimerModal() {
     setEarnedXp(xp);
     setSessionCompleted(true);
 
-    recordCompletedFocus(selectedDuration, xp);
+    recordCompletedFocus(selectedDuration, xp, displayTask);
 
     // Fire glowing confetti
     confetti({
@@ -106,6 +100,26 @@ export function FocusTimerModal() {
     });
   };
 
+  // Timer Tick
+  useEffect(() => {
+    if (isRunning) {
+      timerRef.current = setInterval(() => {
+        setRemaining((prev) => {
+          if (prev <= 1) {
+            handleSessionFinish();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } else {
+      if (timerRef.current) clearInterval(timerRef.current);
+    }
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [isRunning]);
+
   if (!isFocusModalOpen) return null;
 
   return (
@@ -113,7 +127,7 @@ export function FocusTimerModal() {
       {/* Top Bar with Close Button */}
       <div className="absolute top-6 right-6 flex items-center gap-3">
         <button
-          onClick={closeFocusModal}
+          onClick={clearModalState}
           className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center text-outline hover:text-white hover:border-white/30 transition-all cursor-pointer"
         >
           <X size={20} />
@@ -122,26 +136,26 @@ export function FocusTimerModal() {
 
       {/* Main Focus Capsule */}
       <div className="w-full max-w-xl px-6 flex flex-col items-center text-center">
-        {/* Domain Badge */}
-        <div
-          className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-mono font-medium mb-4 uppercase tracking-widest border"
-          style={{
-            color: activeDomain?.accentColor || "#3B82F6",
-            borderColor: `${activeDomain?.accentColor || "#3B82F6"}40`,
-            backgroundColor: `${activeDomain?.accentColor || "#3B82F6"}15`,
-          }}
-        >
-          <span
-            className="w-1.5 h-1.5 rounded-full"
-            style={{ backgroundColor: activeDomain?.accentColor || "#3B82F6" }}
-          />
-          <span>{activeDomain?.name || "Deep Work"} Domain</span>
-        </div>
+{/* Domain Badge */}
+          <div
+            className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-mono font-medium mb-4 uppercase tracking-widest border"
+            style={{
+              color: displayDomain?.accentColor || "#3B82F6",
+              borderColor: `${displayDomain?.accentColor || "#3B82F6"}40`,
+              backgroundColor: `${displayDomain?.accentColor || "#3B82F6"}15`,
+            }}
+          >
+            <span
+              className="w-1.5 h-1.5 rounded-full"
+              style={{ backgroundColor: displayDomain?.accentColor || "#3B82F6" }}
+            />
+            <span>{displayDomain?.name || "Deep Work"} Domain</span>
+          </div>
 
-        {/* Task Title */}
-        <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-white mb-2 font-hanken max-w-lg">
-          {activeTask ? activeTask.title : "Deep Focus Sprint"}
-        </h2>
+          {/* Task Title */}
+          <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-white mb-2 font-hanken max-w-lg">
+            {displayTask ? displayTask.title : "Deep Focus Sprint"}
+          </h2>
         <p className="text-xs font-mono text-outline uppercase tracking-wider mb-8">
           Do not disturb. Feeding the system.
         </p>
@@ -182,7 +196,7 @@ export function FocusTimerModal() {
                 <Award size={18} />
                 <span>Focus Completed! +{earnedXp} XP Verified</span>
               </div>
-              <Button onClick={closeFocusModal} variant="primary" size="lg">
+              <Button onClick={clearModalState} variant="primary" size="lg">
                 Return to Dashboard
               </Button>
             </div>
