@@ -15,6 +15,8 @@ import {
   Check,
   Calendar,
   Sparkles,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -25,6 +27,7 @@ import {
 import { SkillRepeatConfig } from "@/types";
 
 interface OnboardingSkillItem {
+  id: string;
   title: string;
   engine: "DAILY_ROUTINE" | "MULTI_TASK" | "CUSTOM_SCHEDULE" | "SPECIFIC_DATE";
   repeatConfig: SkillRepeatConfig;
@@ -104,85 +107,47 @@ export default function OnboardingWizard() {
     learning: "hydro-dragon",
   });
 
-  // Step 3: Skill definitions
-  const [skills, setSkills] = useState<Record<string, OnboardingSkillItem>>({
-    work: {
-      title: "Frontend Engineering",
-      engine: "DAILY_ROUTINE",
-      repeatConfig: {
+  // Step 3: Skill definitions (domainId -> OnboardingSkillItem[])
+  const [skills, setSkills] = useState<Record<string, OnboardingSkillItem[]>>({
+    work: [
+      {
+        id: "work-default-1",
+        title: "Frontend Engineering",
         engine: "DAILY_ROUTINE",
-        frequency: "daily",
-      },
-    },
-    health: {
-      title: "Marathon Training",
-      engine: "CUSTOM_SCHEDULE",
-      repeatConfig: {
-        engine: "CUSTOM_SCHEDULE",
-        frequency: "weekdays",
-        scheduleType: "weekdays",
-        days: ["M", "T", "W", "Th", "F"],
-      },
-    },
-    learning: {
-      title: "Next.js 15 & System Architecture",
-      engine: "MULTI_TASK",
-      repeatConfig: {
-        engine: "MULTI_TASK",
-        frequency: "multi_task",
-        startDate: getTodayString(),
-        endDate: addDaysToString(getTodayString(), 7),
-        durationPreset: "1 Week",
-      },
-    },
-  });
-
-  const handleEngineChange = (
-    domainId: string,
-    newEngine: "DAILY_ROUTINE" | "MULTI_TASK" | "CUSTOM_SCHEDULE" | "SPECIFIC_DATE"
-  ) => {
-    setSkills((prev) => {
-      const current = prev[domainId] || {
-        title:
-          domainId === "custom" && customDomainName.trim()
-            ? `${customDomainName.trim()} Mastery`
-            : "Daily Discipline Routine",
-        engine: "DAILY_ROUTINE",
-        repeatConfig: { engine: "DAILY_ROUTINE", frequency: "daily" },
-      };
-      return {
-        ...prev,
-        [domainId]: {
-          ...current,
-          engine: newEngine,
-          repeatConfig: {
-            ...current.repeatConfig,
-            engine: newEngine,
-            frequency:
-              newEngine === "DAILY_ROUTINE"
-                ? "daily"
-                : newEngine === "SPECIFIC_DATE"
-                ? "specific_date"
-                : newEngine === "MULTI_TASK"
-                ? "multi_task"
-                : current.repeatConfig?.scheduleType === "weekdays"
-                ? "weekdays"
-                : current.repeatConfig?.scheduleType === "weekends"
-                ? "weekends"
-                : "custom",
-            specificDate: current.repeatConfig?.specificDate || getTodayString(),
-            startDate: current.repeatConfig?.startDate || getTodayString(),
-            endDate:
-              current.repeatConfig?.endDate ||
-              addDaysToString(current.repeatConfig?.startDate || getTodayString(), 7),
-            days: current.repeatConfig?.days || ["M", "T", "W", "Th", "F"],
-          },
+        repeatConfig: {
+          engine: "DAILY_ROUTINE",
+          frequency: "daily",
         },
-      };
-    });
-  };
-
-  const [isLaunching, setIsLaunching] = useState(false);
+      },
+    ],
+    health: [
+      {
+        id: "health-default-1",
+        title: "Marathon Training",
+        engine: "CUSTOM_SCHEDULE",
+        repeatConfig: {
+          engine: "CUSTOM_SCHEDULE",
+          frequency: "weekdays",
+          scheduleType: "weekdays",
+          days: ["M", "T", "W", "Th", "F"],
+        },
+      },
+    ],
+    learning: [
+      {
+        id: "learning-default-1",
+        title: "Next.js 15 & System Architecture",
+        engine: "MULTI_TASK",
+        repeatConfig: {
+          engine: "MULTI_TASK",
+          frequency: "multi_task",
+          startDate: getTodayString(),
+          endDate: addDaysToString(getTodayString(), 7),
+          durationPreset: "1 Week",
+        },
+      },
+    ],
+  });
 
   const getDomainMeta = (domainId: string) => {
     if (domainId === "custom") {
@@ -206,6 +171,125 @@ export default function OnboardingWizard() {
     );
   };
 
+  const getDomainSkills = (domainId: string): OnboardingSkillItem[] => {
+    if (skills[domainId] && skills[domainId].length > 0) {
+      return skills[domainId];
+    }
+    const domainMeta = getDomainMeta(domainId);
+    const defaultTitle =
+      domainId === "custom" && customDomainName.trim()
+        ? `${customDomainName.trim()} Mastery`
+        : domainId === "admin"
+        ? "Home & Life Admin Routine"
+        : domainId === "hobbies"
+        ? "Creative Practice & Game Dev"
+        : `${domainMeta.title} Discipline`;
+
+    return [
+      {
+        id: `${domainId}-default-1`,
+        title: defaultTitle,
+        engine: "DAILY_ROUTINE",
+        repeatConfig: {
+          engine: "DAILY_ROUTINE",
+          frequency: "daily",
+        },
+      },
+    ];
+  };
+
+  const handleAddSkill = (domainId: string) => {
+    const currentList = getDomainSkills(domainId);
+    const domainMeta = getDomainMeta(domainId);
+    const newIndex = currentList.length + 1;
+    const newSkill: OnboardingSkillItem = {
+      id: `${domainId}-skill-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      title: `${domainMeta.title} Project ${newIndex}`,
+      engine: "DAILY_ROUTINE",
+      repeatConfig: {
+        engine: "DAILY_ROUTINE",
+        frequency: "daily",
+      },
+    };
+    setSkills((prev) => ({
+      ...prev,
+      [domainId]: [...currentList, newSkill],
+    }));
+  };
+
+  const handleRemoveSkill = (domainId: string, skillId: string) => {
+    const currentList = getDomainSkills(domainId);
+    if (currentList.length <= 1) return;
+    setSkills((prev) => ({
+      ...prev,
+      [domainId]: currentList.filter((s) => s.id !== skillId),
+    }));
+  };
+
+  const handleSkillTitleChange = (domainId: string, skillId: string, title: string) => {
+    const currentList = getDomainSkills(domainId);
+    setSkills((prev) => ({
+      ...prev,
+      [domainId]: currentList.map((s) => (s.id === skillId ? { ...s, title } : s)),
+    }));
+  };
+
+  const handleSkillRepeatConfigChange = (
+    domainId: string,
+    skillId: string,
+    repeatConfig: SkillRepeatConfig
+  ) => {
+    const currentList = getDomainSkills(domainId);
+    setSkills((prev) => ({
+      ...prev,
+      [domainId]: currentList.map((s) =>
+        s.id === skillId ? { ...s, repeatConfig } : s
+      ),
+    }));
+  };
+
+  const handleEngineChange = (
+    domainId: string,
+    skillId: string,
+    newEngine: "DAILY_ROUTINE" | "MULTI_TASK" | "CUSTOM_SCHEDULE" | "SPECIFIC_DATE"
+  ) => {
+    const currentList = getDomainSkills(domainId);
+    setSkills((prev) => ({
+      ...prev,
+      [domainId]: currentList.map((s) => {
+        if (s.id !== skillId) return s;
+        return {
+          ...s,
+          engine: newEngine,
+          repeatConfig: {
+            ...s.repeatConfig,
+            engine: newEngine,
+            frequency:
+              newEngine === "DAILY_ROUTINE"
+                ? "daily"
+                : newEngine === "SPECIFIC_DATE"
+                ? "specific_date"
+                : newEngine === "MULTI_TASK"
+                ? "multi_task"
+                : s.repeatConfig?.scheduleType === "weekdays"
+                ? "weekdays"
+                : s.repeatConfig?.scheduleType === "weekends"
+                ? "weekends"
+                : "custom",
+            specificDate: s.repeatConfig?.specificDate || getTodayString(),
+            startDate: s.repeatConfig?.startDate || getTodayString(),
+            endDate:
+              s.repeatConfig?.endDate ||
+              addDaysToString(s.repeatConfig?.startDate || getTodayString(), 7),
+            days: s.repeatConfig?.days || ["M", "T", "W", "Th", "F"],
+          },
+        };
+      }),
+    }));
+  };
+
+  const [isLaunching, setIsLaunching] = useState(false);
+
   const toggleDomain = (id: string) => {
     if (selectedDomains.includes(id)) {
       setSelectedDomains(selectedDomains.filter((d) => d !== id));
@@ -225,10 +309,14 @@ export default function OnboardingWizard() {
     try {
       const { saveOnboardingAction } = await import("@/actions/auth");
       const email = typeof window !== "undefined" ? sessionStorage.getItem("onboarding_email") || undefined : undefined;
+      const normalizedSkills: Record<string, OnboardingSkillItem[]> = {};
+      for (const domainId of selectedDomains) {
+        normalizedSkills[domainId] = getDomainSkills(domainId);
+      }
       const res = await saveOnboardingAction({
         selectedDomains,
         assignedCompanions,
-        skills,
+        skills: normalizedSkills,
         email,
         customDomainName: customDomainName.trim() || "Custom Domain",
         customDomainColor,
@@ -533,138 +621,190 @@ export default function OnboardingWizard() {
               const domain = getDomainMeta(domainId);
               const compId = assignedCompanions[domainId] || "wisdom-owl";
               const companion = COMPANIONS.find((c) => c.id === compId);
-              const skillData = skills[domainId] || {
-                title:
-                  domainId === "custom" && customDomainName.trim()
-                    ? `${customDomainName.trim()} Mastery`
-                    : "Daily Discipline Routine",
-                engine: "DAILY_ROUTINE",
-                repeatConfig: {
-                  engine: "DAILY_ROUTINE",
-                  frequency: "daily",
-                },
-              };
+              const domainSkillsList = getDomainSkills(domainId);
 
               return (
                 <div
                   key={domainId}
                   className="p-6 rounded border border-white/10 bg-charcoal-surface space-y-5"
                 >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span
-                        className="text-[10px] font-mono uppercase px-2 py-0.5 rounded font-bold"
+                  <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="w-11 h-11 rounded-lg flex items-center justify-center text-2xl shadow-inner border"
                         style={{
-                          backgroundColor: `${domain?.color}15`,
-                          color: domain?.color,
+                          backgroundColor: `${domain?.color}20`,
+                          borderColor: `${domain?.color}40`,
                         }}
                       >
-                        {domain?.title}
-                      </span>
-                      <h3 className="text-lg font-bold text-white mt-1">
-                        {companion?.name}
-                      </h3>
-                      <p className="text-xs text-outline font-mono">
-                        Core companion for knowledge, engineering, and personal progress.
-                      </p>
-                    </div>
-
-                    <div className="w-14 h-14 rounded-full bg-obsidian-deep border border-white/10 flex items-center justify-center text-3xl">
-                      {companion?.emoji}
+                        {companion?.emoji}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="text-[10px] font-mono uppercase px-2 py-0.5 rounded font-bold"
+                            style={{
+                              backgroundColor: `${domain?.color}20`,
+                              color: domain?.color,
+                            }}
+                          >
+                            {domain?.title}
+                          </span>
+                          <span className="text-[10px] font-mono text-outline">
+                            {domainSkillsList.length} {domainSkillsList.length === 1 ? "Skill / Project" : "Skills / Projects"}
+                          </span>
+                        </div>
+                        <h3 className="text-base font-bold text-white mt-1">
+                          {companion?.name} Focus Hub
+                        </h3>
+                      </div>
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-mono uppercase text-outline mb-1.5">
-                      Primary Skill Name
-                    </label>
-                    <input
-                      type="text"
-                      value={skillData.title}
-                      onChange={(e) =>
-                        setSkills((prev) => ({
-                          ...prev,
-                          [domainId]: { ...skillData, title: e.target.value },
-                        }))
-                      }
-                      className="w-full bg-obsidian-deep border border-surface-bright rounded px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-white"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-mono uppercase text-outline mb-2">
-                      Planning Engine
-                    </label>
-                    <div className="grid grid-cols-2 gap-3">
-                      {[
-                        {
-                          id: "DAILY_ROUTINE",
-                          title: "Daily Routine",
-                          desc: "Continuous day-to-day habits",
-                        },
-                        {
-                          id: "MULTI_TASK",
-                          title: "Multi-Task Project",
-                          desc: "Structured milestones & tasks",
-                        },
-                        {
-                          id: "CUSTOM_SCHEDULE",
-                          title: "Custom Schedule",
-                          desc: "Recurring habits on specific days",
-                        },
-                        {
-                          id: "SPECIFIC_DATE",
-                          title: "Specific Date",
-                          desc: "A standalone event scheduled for a single day",
-                        },
-                      ].map((eng) => (
+                  {/* List of Skills / Projects for this domain */}
+                  <div className="space-y-4">
+                    {domainSkillsList.map((skillItem, sIdx) => {
+                      const isMulti = domainSkillsList.length > 1;
+                      return (
                         <div
-                          key={eng.id}
-                          onClick={() =>
-                            handleEngineChange(
-                              domainId,
-                              eng.id as
-                                | "DAILY_ROUTINE"
-                                | "MULTI_TASK"
-                                | "CUSTOM_SCHEDULE"
-                                | "SPECIFIC_DATE"
-                            )
-                          }
-                          className={cn(
-                            "p-3 rounded border cursor-pointer transition-all",
-                            skillData.engine === eng.id
-                              ? "bg-obsidian-deep border-white text-white shadow-md ring-1 ring-white/20"
-                              : "bg-surface-container-lowest border-white/5 text-outline hover:border-white/20 hover:text-white"
-                          )}
+                          key={skillItem.id}
+                          className="p-4 rounded-lg border border-white/10 bg-obsidian-deep/70 space-y-4 relative transition-all"
                         >
-                          <div className="text-xs font-bold font-mono">
-                            {eng.title}
+                          <div className="flex items-center justify-between border-b border-white/5 pb-2.5">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className="text-[10px] font-mono px-2 py-0.5 rounded font-bold uppercase tracking-wider"
+                                style={{
+                                  backgroundColor: `${domain?.color}25`,
+                                  color: domain?.color,
+                                }}
+                              >
+                                {isMulti ? `Skill / Project #${sIdx + 1}` : "Primary Skill"}
+                              </span>
+                              <span className="text-xs font-mono text-white/90 font-semibold truncate max-w-[200px] sm:max-w-xs">
+                                {skillItem.title || "Untitled Skill"}
+                              </span>
+                            </div>
+
+                            {isMulti && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveSkill(domainId, skillItem.id)}
+                                className="text-outline hover:text-rose-400 p-1 rounded hover:bg-rose-500/10 transition-colors flex items-center gap-1 text-[11px] font-mono cursor-pointer"
+                                title="Remove this skill"
+                              >
+                                <Trash2 size={13} />
+                                <span>Remove</span>
+                              </button>
+                            )}
                           </div>
-                          <div className="text-[10px] text-outline mt-0.5">
-                            {eng.desc}
+
+                          <div>
+                            <label className="block text-xs font-mono uppercase text-outline mb-1.5">
+                              Skill or Project Name
+                            </label>
+                            <input
+                              type="text"
+                              value={skillItem.title}
+                              onChange={(e) =>
+                                handleSkillTitleChange(domainId, skillItem.id, e.target.value)
+                              }
+                              placeholder="e.g. Frontend Engineering, Marathon Training, Spanish Fluency..."
+                              className="w-full bg-obsidian-deep border border-surface-bright rounded px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-white transition-colors"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-mono uppercase text-outline mb-2">
+                              Planning Engine
+                            </label>
+                            <div className="grid grid-cols-2 gap-2.5">
+                              {[
+                                {
+                                  id: "DAILY_ROUTINE",
+                                  title: "Daily Routine",
+                                  desc: "Continuous day-to-day habits",
+                                },
+                                {
+                                  id: "MULTI_TASK",
+                                  title: "Multi-Task Project",
+                                  desc: "Structured milestones & tasks",
+                                },
+                                {
+                                  id: "CUSTOM_SCHEDULE",
+                                  title: "Custom Schedule",
+                                  desc: "Recurring habits on specific days",
+                                },
+                                {
+                                  id: "SPECIFIC_DATE",
+                                  title: "Specific Date",
+                                  desc: "A standalone event scheduled for a single day",
+                                },
+                              ].map((eng) => (
+                                <div
+                                  key={eng.id}
+                                  onClick={() =>
+                                    handleEngineChange(
+                                      domainId,
+                                      skillItem.id,
+                                      eng.id as
+                                        | "DAILY_ROUTINE"
+                                        | "MULTI_TASK"
+                                        | "CUSTOM_SCHEDULE"
+                                        | "SPECIFIC_DATE"
+                                    )
+                                  }
+                                  className={cn(
+                                    "p-2.5 rounded border cursor-pointer transition-all",
+                                    skillItem.engine === eng.id
+                                      ? "bg-obsidian-deep border-white text-white shadow-md ring-1 ring-white/20"
+                                      : "bg-surface-container-lowest border-white/5 text-outline hover:border-white/20 hover:text-white"
+                                  )}
+                                >
+                                  <div className="text-xs font-bold font-mono">
+                                    {eng.title}
+                                  </div>
+                                  <div className="text-[10px] text-outline mt-0.5">
+                                    {eng.desc}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* Dynamic Schedule & Date Configurator */}
+                            <div className="mt-3.5">
+                              <SkillScheduleConfig
+                                engine={skillItem.engine}
+                                config={skillItem.repeatConfig || { engine: skillItem.engine }}
+                                onChange={(newConfig) =>
+                                  handleSkillRepeatConfigChange(domainId, skillItem.id, newConfig)
+                                }
+                                accentColor={domain?.color || "#10B981"}
+                              />
+                            </div>
                           </div>
                         </div>
-                      ))}
-                    </div>
-
-                    {/* Dynamic Schedule & Date Configurator */}
-                    <div className="mt-3.5">
-                      <SkillScheduleConfig
-                        engine={skillData.engine}
-                        config={skillData.repeatConfig || { engine: skillData.engine }}
-                        onChange={(newConfig) => {
-                          setSkills((prev) => ({
-                            ...prev,
-                            [domainId]: {
-                              ...skillData,
-                              repeatConfig: newConfig,
-                            },
-                          }));
-                        }}
-                        accentColor={domain?.color || "#10B981"}
-                      />
-                    </div>
+                      );
+                    })}
                   </div>
+
+                  {/* Add Skill / Project to this Domain Button */}
+                  <button
+                    type="button"
+                    onClick={() => handleAddSkill(domainId)}
+                    className="w-full py-3 px-4 rounded-lg border border-dashed border-white/20 hover:border-white/50 hover:bg-white/[0.04] text-xs font-mono text-white/90 hover:text-white flex items-center justify-center gap-2 transition-all cursor-pointer group shadow-sm"
+                  >
+                    <div
+                      className="w-5 h-5 rounded flex items-center justify-center transition-transform group-hover:scale-110"
+                      style={{
+                        backgroundColor: `${domain?.color || "#10B981"}25`,
+                        color: domain?.color || "#10B981",
+                      }}
+                    >
+                      <Plus size={13} className="stroke-[2.5]" />
+                    </div>
+                    <span className="font-semibold">Add Skill / Project to {domain?.title}</span>
+                  </button>
                 </div>
               );
             })}

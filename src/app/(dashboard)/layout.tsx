@@ -6,6 +6,7 @@ import { TaskInspectorDrawer } from "@/components/inspector/task-inspector-drawe
 import { CreateTaskModal } from "@/components/dashboard/create-task-modal";
 import { UpgradeAccountModal } from "@/components/layout/upgrade-account-modal";
 import { UserHeaderPill } from "@/components/layout/user-header-pill";
+import { UserRankHeaderPill } from "@/components/layout/user-rank-header-pill";
 import { fetchDashboardSeedData } from "@/lib/dashboard-seed";
 
 export default async function DashboardLayout({
@@ -30,8 +31,11 @@ export default async function DashboardLayout({
               <span>TLS 1.3 Encrypted Session</span>
             </div>
 
-            {/* User Profile Pill — reads real user from context */}
-            <UserHeaderPill />
+            {/* Rank Status + User Profile Pill */}
+            <div className="flex items-center gap-3">
+              <UserRankHeaderPill />
+              <UserHeaderPill />
+            </div>
           </header>
 
           {/* Page View Canvas */}

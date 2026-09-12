@@ -10,8 +10,11 @@ const createJestConfig = nextJest({
 const config: Config = {
   coverageProvider: "v8",
   testEnvironment: "jsdom",
-  // Unit tests only (*.test.ts under src/) — Playwright owns tests/e2e/*.spec.ts
-  testMatch: ["<rootDir>/src/**/*.test.ts"],
+  // Unit tests only (*.test.ts and *.test.tsx under src/) — Playwright owns tests/e2e/*.spec.ts
+  testMatch: ["<rootDir>/src/**/*.test.ts", "<rootDir>/src/**/*.test.tsx"],
+  moduleNameMapper: {
+    "^@/(.*)$": "<rootDir>/src/$1",
+  },
   testPathIgnorePatterns: ["<rootDir>/node_modules/", "<rootDir>/.next/"],
   setupFilesAfterEnv: ["<rootDir>/jest.setup.ts"],
 };

@@ -139,9 +139,9 @@ export default function DashboardPage() {
           <span className="text-outline uppercase tracking-wider text-[11px]">
             CURRENT RANK:
           </span>
-          <span className="text-white font-bold flex items-center gap-1">
+          <span className="text-white font-bold flex items-center gap-1.5">
             <Zap size={13} className="text-[#F59E0B] fill-[#F59E0B]" />
-            Vanguard III
+            <span>{user.rankTitle} Tier {user.rankTier}</span>
           </span>
         </div>
       </div>

@@ -19,7 +19,7 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: [["list"]],
   use: {
-    baseURL: "http://localhost:3210",
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || "http://localhost:3210",
     trace: "on-first-retry",
     screenshot: "only-on-failure",
   },
@@ -29,13 +29,15 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
     },
   ],
-  webServer: {
-    // Demo-mode launcher: pre-sets env vars as empty so the app falls back to
-    // bundled mock data — tests never touch the real Neon DB or Supabase.
-    // Dedicated port 3210 avoids clashing with a normal `npm run dev` server.
-    command: "node scripts/e2e-server.js 3210",
-    url: "http://localhost:3210",
-    reuseExistingServer: !process.env.CI,
-    timeout: 180_000,
-  },
+  webServer: process.env.NO_SERVER
+    ? undefined
+    : {
+        // Demo-mode launcher: pre-sets env vars as empty so the app falls back to
+        // bundled mock data — tests never touch the real Neon DB or Supabase.
+        // Dedicated port 3210 avoids clashing with a normal `npm run dev` server.
+        command: "node scripts/e2e-server.js 3210",
+        url: "http://localhost:3210",
+        reuseExistingServer: !process.env.CI,
+        timeout: 180_000,
+      },
 });

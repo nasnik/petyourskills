@@ -168,7 +168,11 @@ export async function registerUserAction(data: {
 export async function saveOnboardingAction(data: {
   selectedDomains: string[];
   assignedCompanions: Record<string, string>;
-  skills: Record<string, { title: string; engine: string; repeatConfig?: SkillRepeatConfig }>;
+  skills: Record<
+    string,
+    | { title: string; engine: string; repeatConfig?: SkillRepeatConfig }
+    | Array<{ title: string; engine: string; repeatConfig?: SkillRepeatConfig }>
+  >;
   email?: string;
   customDomainName?: string;
   customDomainColor?: string;
@@ -259,69 +263,99 @@ export async function saveOnboardingAction(data: {
         },
       });
 
-      const skillConfig = data.skills[slug];
-      const petTitle = skillConfig?.title || `${compKey} Guardian`;
-      const petId = `pet-${slug}-${user.id.slice(0, 8)}`;
+      const rawSkills = data.skills[slug];
+      const skillList = Array.isArray(rawSkills)
+        ? rawSkills
+        : rawSkills
+        ? [rawSkills]
+        : [];
 
-      await prisma.skillPet.upsert({
-        where: { id: petId },
-        update: {
-          title: petTitle,
-          planningEngineType: skillConfig?.engine || "DAILY_ROUTINE",
-        },
-        create: {
-          id: petId,
-          domainId: domain.id,
-          title: petTitle,
-          level: 1,
-          currentXp: 0,
-          nextEvolutionThreshold: 1000,
-          planningEngineType: skillConfig?.engine || "DAILY_ROUTINE",
-        },
-      });
-
-      if (skillConfig) {
-        const repeatConfigPayload =
-          skillConfig.repeatConfig || { engine: skillConfig.engine || "DAILY_ROUTINE" };
-
-        const createdTask = await prisma.task.create({
-          data: {
+      if (skillList.length === 0) {
+        const petTitle = `${compKey} Guardian`;
+        const petId = `pet-${slug}-${user.id.slice(0, 8)}`;
+        await prisma.skillPet.upsert({
+          where: { id: petId },
+          update: {
+            title: petTitle,
+            planningEngineType: "DAILY_ROUTINE",
+          },
+          create: {
+            id: petId,
             domainId: domain.id,
-            title: skillConfig.title,
-            columnId: "TODO",
-            isCompleted: false,
-            xpReward: 25,
-            repeatConfig: repeatConfigPayload as any,
+            title: petTitle,
+            level: 1,
+            currentXp: 0,
+            nextEvolutionThreshold: 1000,
+            planningEngineType: "DAILY_ROUTINE",
           },
         });
+      } else {
+        for (let idx = 0; idx < skillList.length; idx++) {
+          const skillConfig = skillList[idx];
+          const petTitle = skillConfig?.title || (idx === 0 ? `${compKey} Guardian` : `${compKey} Skill ${idx + 1}`);
+          const petId = idx === 0 ? `pet-${slug}-${user.id.slice(0, 8)}` : `pet-${slug}-${idx + 1}-${user.id.slice(0, 8)}`;
 
-        if (skillConfig.engine === "MULTI_TASK") {
-          try {
-            await prisma.task.createMany({
-              data: [
-                {
-                  domainId: domain.id,
-                  boardId: createdTask.id,
-                  title: `Milestone 1: Project Scope & Setup`,
-                  columnId: "TODO",
-                  isCompleted: false,
-                  xpReward: 30,
-                  estimatedMinutes: 25,
-                  sortOrder: 1,
-                },
-                {
-                  domainId: domain.id,
-                  boardId: createdTask.id,
-                  title: `Milestone 2: Core Implementation Sprint`,
-                  columnId: "IN_PROGRESS",
-                  isCompleted: false,
-                  xpReward: 50,
-                  estimatedMinutes: 45,
-                  sortOrder: 2,
-                },
-              ],
+          await prisma.skillPet.upsert({
+            where: { id: petId },
+            update: {
+              title: petTitle,
+              planningEngineType: skillConfig?.engine || "DAILY_ROUTINE",
+            },
+            create: {
+              id: petId,
+              domainId: domain.id,
+              title: petTitle,
+              level: 1,
+              currentXp: 0,
+              nextEvolutionThreshold: 1000,
+              planningEngineType: skillConfig?.engine || "DAILY_ROUTINE",
+            },
+          });
+
+          if (skillConfig && skillConfig.title.trim()) {
+            const repeatConfigPayload =
+              skillConfig.repeatConfig || { engine: skillConfig.engine || "DAILY_ROUTINE" };
+
+            const createdTask = await prisma.task.create({
+              data: {
+                domainId: domain.id,
+                title: skillConfig.title.trim(),
+                columnId: "TODO",
+                isCompleted: false,
+                xpReward: 25,
+                repeatConfig: repeatConfigPayload as any,
+              },
             });
-          } catch {}
+
+            if (skillConfig.engine === "MULTI_TASK") {
+              try {
+                await prisma.task.createMany({
+                  data: [
+                    {
+                      domainId: domain.id,
+                      boardId: createdTask.id,
+                      title: `Milestone 1: Scope & Planning`,
+                      columnId: "TODO",
+                      isCompleted: false,
+                      xpReward: 30,
+                      estimatedMinutes: 25,
+                      sortOrder: 1,
+                    },
+                    {
+                      domainId: domain.id,
+                      boardId: createdTask.id,
+                      title: `Milestone 2: Execution Sprint`,
+                      columnId: "IN_PROGRESS",
+                      isCompleted: false,
+                      xpReward: 50,
+                      estimatedMinutes: 45,
+                      sortOrder: 2,
+                    },
+                  ],
+                });
+              } catch {}
+            }
+          }
         }
       }
     }
