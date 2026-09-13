@@ -3,7 +3,79 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { getPysUidFromCookie } from "@/actions/auth";
-import { SkillRepeatConfig } from "@/types";
+import { SkillRepeatConfig, TaskItem, LifeDomainItem } from "@/types";
+
+function isDailyRoutineTask(task: TaskItem): boolean {
+  const rc = task.repeatConfig as { engine?: string; frequency?: string } | null;
+  return rc?.engine === "DAILY_ROUTINE" || rc?.frequency === "daily";
+}
+
+function isSameDay(date1: Date | string | null | undefined, date2: Date): boolean {
+  if (!date1) return false;
+  const d1 = typeof date1 === "string" ? new Date(date1) : date1;
+  return (
+    d1.getFullYear() === date2.getFullYear() &&
+    d1.getMonth() === date2.getMonth() &&
+    d1.getDate() === date2.getDate()
+  );
+}
+
+async function resetDailyRoutineTasks(
+  tasks: TaskItem[],
+  domains: LifeDomainItem[],
+  userId: string
+): Promise<{ tasks: TaskItem[]; domains: LifeDomainItem[] }> {
+  const today = new Date();
+  const tasksToReset = tasks.filter(
+    (t) => t.isCompleted && isDailyRoutineTask(t) && !isSameDay(t.doneAt, today)
+  );
+
+  if (tasksToReset.length === 0) {
+    return { tasks, domains };
+  }
+
+  const taskIds = tasksToReset.map((t) => t.id);
+
+  await prisma.task.updateMany({
+    where: { id: { in: taskIds } },
+    data: {
+      isCompleted: false,
+      columnId: "TODO",
+      doneAt: null,
+    },
+  });
+
+  for (const task of tasksToReset) {
+    const domain = domains.find((d) => d.id === task.domainId);
+    if (domain) {
+      await prisma.lifeDomain.update({
+        where: { id: domain.id },
+        data: { currentXp: { decrement: task.xpReward } },
+      });
+    }
+    await prisma.user.update({
+      where: { id: userId },
+      data: { totalXp: { decrement: task.xpReward } },
+    });
+  }
+
+  const updatedTasks = tasks.map((t) => {
+    const resetTask = tasksToReset.find((rt) => rt.id === t.id);
+    if (resetTask) {
+      return { ...t, isCompleted: false, columnId: "TODO" as const, doneAt: null };
+    }
+    return t;
+  });
+
+  const updatedDomains = domains.map((d) => {
+    const domainTasks = tasksToReset.filter((t) => t.domainId === d.id);
+    if (domainTasks.length === 0) return d;
+    const xpLost = domainTasks.reduce((sum, t) => sum + t.xpReward, 0);
+    return { ...d, currentXp: Math.max(0, d.currentXp - xpLost) };
+  });
+
+  return { tasks: updatedTasks, domains: updatedDomains };
+}
 
 export async function getDashboardDataAction() {
   try {
@@ -25,7 +97,52 @@ export async function getDashboardDataAction() {
       },
     });
 
-    return { user, tasks };
+    const mappedTasks: TaskItem[] = tasks.map((t) => ({
+      id: t.id,
+      domainId: t.domainId,
+      boardId: t.boardId,
+      title: t.title,
+      columnId: t.columnId as TaskItem["columnId"],
+      isCompleted: t.isCompleted,
+      doneAt: t.doneAt ? t.doneAt.toISOString() : null,
+      xpReward: t.xpReward,
+      estimatedMinutes: t.estimatedMinutes,
+      repeatConfig: t.repeatConfig as TaskItem["repeatConfig"],
+      sortOrder: t.sortOrder,
+    }));
+
+    const mappedDomains: LifeDomainItem[] = user?.domains.map((d) => ({
+      id: d.id,
+      userId: d.userId,
+      name: d.name,
+      slug: d.slug,
+      accentColor: d.accentColor,
+      avatarSpecies: d.avatarSpecies,
+      level: d.level,
+      currentXp: d.currentXp,
+      isActive: d.isActive,
+      skillPets: d.skillPets.map((p) => ({
+        id: p.id,
+        domainId: p.domainId,
+        title: p.title,
+        level: p.level,
+        currentXp: p.currentXp,
+        nextEvolutionThreshold: p.nextEvolutionThreshold,
+        perks: p.perks as Record<string, unknown> | null,
+        planningEngineType: p.planningEngineType as "DAILY_ROUTINE" | "MULTI_TASK" | "CUSTOM_SCHEDULE" | "SPECIFIC_DATE",
+      })),
+    })) ?? [];
+
+    if (user?.id) {
+      const { tasks: resetTasks } = await resetDailyRoutineTasks(
+        mappedTasks,
+        mappedDomains,
+        user.id
+      );
+      return { user, tasks: resetTasks };
+    }
+
+    return { user, tasks: mappedTasks };
   } catch (error) {
     console.error("Failed to fetch dashboard data from Neon:", error);
     return null;

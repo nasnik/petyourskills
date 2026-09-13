@@ -11,6 +11,109 @@ import {
   type SharedProjectWithTasks,
 } from "@/lib/shared-project";
 
+function isDailyRoutineTask(task: TaskItem): boolean {
+  const rc = task.repeatConfig as { engine?: string; frequency?: string } | null;
+  return rc?.engine === "DAILY_ROUTINE" || rc?.frequency === "daily";
+}
+
+function isSameDay(date1: Date | string | null | undefined, date2: Date): boolean {
+  if (!date1) return false;
+  const d1 = typeof date1 === "string" ? new Date(date1) : date1;
+  return (
+    d1.getFullYear() === date2.getFullYear() &&
+    d1.getMonth() === date2.getMonth() &&
+    d1.getDate() === date2.getDate()
+  );
+}
+
+async function resetDailyRoutineTasks(
+  tasks: TaskItem[],
+  domains: LifeDomainItem[],
+  userId: string
+): Promise<{ tasks: TaskItem[]; domains: LifeDomainItem[] }> {
+  const today = new Date();
+  const tasksToReset = tasks.filter(
+    (t) => t.isCompleted && isDailyRoutineTask(t) && !isSameDay(t.doneAt, today)
+  );
+
+  if (tasksToReset.length === 0) {
+    return { tasks, domains };
+  }
+
+  const taskIds = tasksToReset.map((t) => t.id);
+
+  await prisma.task.updateMany({
+    where: { id: { in: taskIds } },
+    data: {
+      isCompleted: false,
+      columnId: "TODO",
+      doneAt: null,
+    },
+  });
+
+  for (const task of tasksToReset) {
+    const domain = domains.find((d) => d.id === task.domainId);
+    if (domain) {
+      await prisma.lifeDomain.update({
+        where: { id: domain.id },
+        data: { currentXp: { decrement: task.xpReward } },
+      });
+    }
+    await prisma.user.update({
+      where: { id: userId },
+      data: { totalXp: { decrement: task.xpReward } },
+    });
+  }
+
+  const updatedTasks = tasks.map((t) => {
+    const resetTask = tasksToReset.find((rt) => rt.id === t.id);
+    if (resetTask) {
+      return { ...t, isCompleted: false, columnId: "TODO" as const, doneAt: null };
+    }
+    return t;
+  });
+
+  const updatedDomains = domains.map((d) => {
+    const domainTasks = tasksToReset.filter((t) => t.domainId === d.id);
+    if (domainTasks.length === 0) return d;
+    const xpLost = domainTasks.reduce((sum, t) => sum + t.xpReward, 0);
+    return { ...d, currentXp: Math.max(0, d.currentXp - xpLost) };
+  });
+
+  return { tasks: updatedTasks, domains: updatedDomains };
+}
+
+function resetDailyRoutineTasksClient(
+  tasks: TaskItem[],
+  domains: LifeDomainItem[]
+): { tasks: TaskItem[]; domains: LifeDomainItem[] } {
+  const today = new Date();
+  const tasksToReset = tasks.filter(
+    (t) => t.isCompleted && isDailyRoutineTask(t) && !isSameDay(t.doneAt, today)
+  );
+
+  if (tasksToReset.length === 0) {
+    return { tasks, domains };
+  }
+
+  const updatedTasks = tasks.map((t) => {
+    const resetTask = tasksToReset.find((rt) => rt.id === t.id);
+    if (resetTask) {
+      return { ...t, isCompleted: false, columnId: "TODO" as const, doneAt: null };
+    }
+    return t;
+  });
+
+  const updatedDomains = domains.map((d) => {
+    const domainTasks = tasksToReset.filter((t) => t.domainId === d.id);
+    if (domainTasks.length === 0) return d;
+    const xpLost = domainTasks.reduce((sum, t) => sum + t.xpReward, 0);
+    return { ...d, currentXp: Math.max(0, d.currentXp - xpLost) };
+  });
+
+  return { tasks: updatedTasks, domains: updatedDomains };
+}
+
 export interface DashboardSeedData {
   user: UserProfile;
   domains: LifeDomainItem[];
@@ -367,7 +470,13 @@ export async function fetchDashboardSeedData(): Promise<DashboardSeedData> {
       );
     }
 
-    return { user: userProfile, domains, tasks };
+    const { tasks: resetTasks, domains: resetDomains } = await resetDailyRoutineTasks(
+      tasks,
+      domains,
+      dbUser.id
+    );
+
+    return { user: userProfile, domains: resetDomains, tasks: resetTasks };
   } catch (err) {
     console.error("[fetchDashboardSeedData] error, falling back to mock data:", err);
     // Last-resort demo guest workspace (passkey join without a database)
@@ -379,8 +488,18 @@ export async function fetchDashboardSeedData(): Promise<DashboardSeedData> {
         "guest-demo",
         sharedCookieProjectId
       );
-      if (demoGuest) return demoGuest;
+      if (demoGuest) {
+        const { tasks, domains } = resetDailyRoutineTasksClient(
+          demoGuest.tasks,
+          demoGuest.domains
+        );
+        return { ...demoGuest, tasks, domains };
+      }
     } catch {}
-    return { user: INITIAL_USER_PROFILE, domains: INITIAL_DOMAINS, tasks: INITIAL_TASKS };
+    const { tasks, domains } = resetDailyRoutineTasksClient(
+      INITIAL_TASKS,
+      INITIAL_DOMAINS
+    );
+    return { user: INITIAL_USER_PROFILE, domains, tasks };
   }
 }
