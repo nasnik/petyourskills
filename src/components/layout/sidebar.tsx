@@ -424,82 +424,101 @@ export function Sidebar() {
           </div>
 
           {/* Multi-Task Projects Section */}
-          {visibleProjects.length > 0 && (
-            <div className="space-y-2 pt-2 border-t border-white/5">
-              <div className="text-[10px] font-mono uppercase tracking-wider text-outline px-1 flex items-center gap-1.5 font-bold">
-                <Layers size={11} className="text-wellness-emerald" />
-                <span>Multi-Task Projects</span>
-              </div>
+{visibleProjects.length > 0 && (
+              <div className="space-y-2 pt-2 border-t border-white/5">
+                <div className="text-[10px] font-mono uppercase tracking-wider text-outline px-1 flex items-center gap-1.5 font-bold">
+                  <Layers size={11} className="text-wellness-emerald" />
+                  <span>Multi-Task Projects</span>
+                </div>
 
-              <div className="space-y-1.5">
-                {visibleProjects.map((proj) => {
-                  const isActive = activeProjectId === proj.id;
-                  const projDomain = proj.domain;
+                <div className="space-y-1.5">
+                  {visibleProjects.map((proj) => {
+                    const isActive = activeProjectId === proj.id;
+                    const projDomain = proj.domain;
+                    
+                    // Find the associated task to check completion status
+                    const projTask = tasks.find((t) => t.id === proj.id || 
+                      (t.domainId === proj.domainId && (t.planningEngineType === "MULTI_TASK" || (t.repeatConfig as { engine?: string })?.engine === "MULTI_TASK" && t.title === proj.title))
+                    );
+                    const isCompleted = projTask?.isCompleted ?? false;
+                    const accent = projDomain?.accentColor || "#3B82F6";
 
-                  return (
-                    <div
-                      key={proj.id}
-                      onClick={() => {
-                        setActiveProjectId(proj.id);
-                        router.push("/dashboard");
-                      }}
-                      className={cn(
-                        "w-full flex items-center justify-between p-2.5 rounded-lg text-xs transition-all border text-left cursor-pointer",
-                        isActive
-                          ? "bg-white/10 border-white text-white font-semibold shadow-md ring-1 ring-white/20"
-                          : "bg-obsidian-deep border-white/10 hover:border-white/25 hover:bg-surface-container-lowest/60 text-on-surface"
-                      )}
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div
-                          className="w-6 h-6 rounded flex items-center justify-center shrink-0 font-bold text-xs"
+                    return (
+                      <div
+                        key={proj.id}
+                        onClick={() => {
+                          setActiveProjectId(proj.id);
+                          router.push("/dashboard");
+                        }}
+                        className={cn(
+                          "w-full flex items-center justify-between p-2.5 rounded-lg text-xs transition-all border text-left cursor-pointer",
+                          isActive
+                            ? "bg-white/10 border-white text-white font-semibold shadow-md ring-1 ring-white/20"
+                            : "bg-obsidian-deep border-white/10 hover:border-white/25 hover:bg-surface-container-lowest/60 text-on-surface"
+                        )}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <Checkbox
+                            checked={isCompleted}
+                            color={accent}
+                            size="sm"
+                            onChange={() => {
+                              if (projTask) {
+                                toggleTaskComplete(projTask.id);
+                              }
+                            }}
+                          />
+                          <div
+                            className="w-6 h-6 rounded flex items-center justify-center shrink-0 font-bold text-xs"
+                            style={{
+                              backgroundColor: `${accent}20`,
+                              color: accent,
+                              border: `1px solid ${accent}40`,
+                            }}
+                          >
+                            <FolderKanban size={13} />
+                          </div>
+                          <div className="min-w-0">
+                            <div className={cn(
+                              "font-semibold text-white truncate text-xs transition-colors",
+                              isCompleted && "line-through text-outline"
+                            )}>
+                              {proj.title}
+                            </div>
+                            <div className="text-[10px] font-mono text-outline truncate">
+                              {projDomain?.name} · Kanban
+                            </div>
+                          </div>
+                        </div>
+
+                        <span
+                          className="text-[9px] font-mono px-1.5 py-0.5 rounded uppercase font-bold flex items-center gap-1 shrink-0"
                           style={{
-                            backgroundColor: `${projDomain?.accentColor || "#3B82F6"}20`,
-                            color: projDomain?.accentColor || "#3B82F6",
-                            border: `1px solid ${projDomain?.accentColor || "#3B82F6"}40`,
+                            backgroundColor: `${accent}20`,
+                            color: accent,
+                            border: `1px solid ${accent}40`,
                           }}
                         >
-                          <FolderKanban size={13} />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="font-semibold text-white truncate text-xs">
-                            {proj.title}
-                          </div>
-                          <div className="text-[10px] font-mono text-outline truncate">
-                            {projDomain?.name} · Kanban
-                          </div>
-                        </div>
+                          <Layers size={9} />
+                          <span>Board</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openFocusModal(projTask || null);
+                          }}
+                          className="p-1 rounded text-wellness-emerald hover:bg-wellness-emerald/15 transition-all cursor-pointer"
+                          title="Focus on this project"
+                        >
+                          <Play size={13} className="fill-wellness-emerald" />
+                        </button>
                       </div>
-
-                      <span
-                        className="text-[9px] font-mono px-1.5 py-0.5 rounded uppercase font-bold flex items-center gap-1 shrink-0"
-                        style={{
-                          backgroundColor: `${projDomain?.accentColor || "#3B82F6"}20`,
-                          color: projDomain?.accentColor || "#3B82F6",
-                          border: `1px solid ${projDomain?.accentColor || "#3B82F6"}40`,
-                        }}
-                      >
-                        <Layers size={9} />
-                        <span>Board</span>
-                      </span>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const projTask = tasks.find((t) => t.domainId === proj.domainId && (t.planningEngineType === "MULTI_TASK" || (t.repeatConfig as { engine?: string })?.engine === "MULTI_TASK"));
-                          openFocusModal(projTask || null);
-                        }}
-                        className="p-1 rounded text-wellness-emerald hover:bg-wellness-emerald/15 transition-all cursor-pointer"
-                        title="Focus on this project"
-                      >
-                        <Play size={13} className="fill-wellness-emerald" />
-                      </button>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          )}
+            )}
         </div>
 
         {/* Bottom Focus Launcher & Actions */}

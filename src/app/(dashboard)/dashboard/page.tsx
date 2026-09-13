@@ -7,6 +7,7 @@ import { DailyXpGauge } from "@/components/dashboard/daily-xp-gauge";
 import { PetHappinessCard } from "@/components/dashboard/pet-happiness-card";
 import { QuestList } from "@/components/dashboard/quest-list";
 import { DailyYieldBanner } from "@/components/dashboard/daily-yield-banner";
+import { DailyCompletionSummary } from "@/components/dashboard/daily-completion-summary";
 import { ProjectKanbanBoard } from "@/components/kanban/project-kanban-board";
 import { useApp } from "@/lib/store/app-context";
 import { Zap, Plus, Users, FolderKanban, ArrowRight, UserPlus } from "lucide-react";
@@ -152,6 +153,9 @@ export default function DashboardPage() {
         <DailyXpGauge />
         <PetHappinessCard />
       </div>
+
+      {/* Daily Completion Summary */}
+      <DailyCompletionSummary />
 
       {/* Today's Quests Filterable Section */}
       <div className="pt-2">
