@@ -3,7 +3,7 @@
 import React, { useState, useMemo } from "react";
 import { FocusHoursChart } from "@/components/growth/focus-hours-chart";
 import { DomainProgressList } from "@/components/growth/domain-progress-list";
-import { CompanionEvolution } from "@/components/growth/companion-evolution";
+import { CompanionEvolutionHorizontal } from "@/components/growth/companion-evolution";
 import { ProjectTimeStats } from "@/components/growth/project-time-stats";
 import { useApp } from "@/lib/store/app-context";
 import { Clock, CheckCircle, Zap, Flame } from "lucide-react";
@@ -181,16 +181,13 @@ export default function GrowthPage() {
         </div>
       </div>
 
-      {/* Main Analytics Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        <div className="lg:col-span-2 space-y-6">
-          <FocusHoursChart timeframe={timeframe} />
-          <DomainProgressList timeframe={timeframe} />
-        </div>
+      {/* Companion Evolution Horizontal */}
+      <CompanionEvolutionHorizontal />
 
-        <div className="lg:col-span-1 space-y-6">
-          <CompanionEvolution />
-        </div>
+      {/* Main Analytics Layout */}
+      <div className="space-y-6">
+        <FocusHoursChart timeframe={timeframe} />
+        <DomainProgressList timeframe={timeframe} />
       </div>
 
       {/* Project & Skill Time Breakdown */}

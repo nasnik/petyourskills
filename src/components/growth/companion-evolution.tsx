@@ -154,3 +154,99 @@ export function CompanionEvolution() {
     </div>
   );
 }
+
+export function CompanionEvolutionHorizontal() {
+  const { domains, tasks, focusSessions } = useApp();
+  const allCompanions = getAllCompanionsEvolutionData(focusSessions, tasks, domains);
+
+  if (allCompanions.length === 0) {
+    return null;
+  }
+
+  // Sort by level descending, then by current XP
+  const sortedCompanions = [...allCompanions].sort((a, b) => {
+    if (b.level !== a.level) return b.level - a.level;
+    return b.currentXp - a.currentXp;
+  });
+
+  return (
+    <div className="bg-charcoal-surface border border-white/10 rounded p-4 space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <span className="font-mono text-xs font-bold uppercase tracking-wider text-outline">
+          Companion Evolution
+        </span>
+        <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-wellness-emerald/15 text-wellness-emerald border border-wellness-emerald/30">
+          {allCompanions.length} Active
+        </span>
+      </div>
+
+      <div className="flex flex-col sm:flex-row gap-3 overflow-x-auto pb-2">
+        {sortedCompanions.map((companion, index) => (
+          <CompanionCardHorizontal key={companion.name} companion={companion} isPrimary={index === 0} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CompanionCardHorizontal({ companion, isPrimary }: { companion: CompanionEvolutionData; isPrimary: boolean }) {
+  const cardClass = isPrimary 
+    ? "bg-surface-container-lowest/80 border border-wellness-emerald/30 p-4 relative overflow-hidden flex flex-col items-center min-w-[200px] flex-shrink-0"
+    : "bg-charcoal-surface/50 border border-white/5 p-4 rounded-xl flex flex-col items-center min-w-[200px] flex-shrink-0";
+
+  return (
+    <div className={cardClass}>
+      {/* Companion Avatar */}
+      <div className={`w-16 h-16 rounded-full flex items-center justify-center text-2xl mb-2 ${isPrimary 
+        ? "bg-wellness-emerald/10 border-2 border-wellness-emerald shadow-[0_0_20px_rgba(16,185,129,0.3)]" 
+        : "bg-surface-container-low border border-white/10"
+      }`}>
+        {getDomainAvatarEmoji(companion.species)}
+      </div>
+
+      <div className="space-y-1 text-center w-full">
+        <h4 className="text-sm font-bold text-white tracking-tight">{companion.species}</h4>
+        <div className="text-[10px] font-mono text-outline">
+          {companion.name} · Lv. {companion.level}
+        </div>
+        {isPrimary && (
+          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-wellness-emerald/15 text-wellness-emerald border border-wellness-emerald/30">
+            Active Slot
+          </span>
+        )}
+      </div>
+
+      {/* Progress Bar */}
+      <div className="w-full space-y-1 mt-2">
+        <div className="flex justify-between text-[9px] font-mono text-outline">
+          <span>Progress</span>
+          <span className="text-white font-semibold">
+            {companion.progress.toFixed(0)}%
+          </span>
+        </div>
+        <div className="w-full bg-obsidian-deep h-1.5 rounded-full overflow-hidden">
+          <div
+            className="h-full rounded-full transition-all duration-500"
+            style={{ 
+              width: `${companion.progress}%`, 
+              backgroundColor: companion.color,
+              boxShadow: `0 0 6px ${companion.color}`,
+            }}
+          />
+        </div>
+        <p className="text-[9px] font-mono text-outline text-center">
+          {formatNumber(companion.xpNeeded)} XP to next
+        </p>
+      </div>
+
+      {/* XP earned this period */}
+      <div className="w-full pt-2 border-t border-white/5 flex items-center justify-center gap-1.5 text-[9px] font-mono">
+        <span className="text-outline">XP:</span>
+        <span className="font-bold" style={{ color: companion.color }}>
+          +{formatNumber(companion.xpInPeriod)}
+        </span>
+        <Zap size={9} style={{ color: companion.color }} />
+      </div>
+    </div>
+  );
+}
