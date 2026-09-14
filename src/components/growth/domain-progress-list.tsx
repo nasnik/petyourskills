@@ -1,57 +1,43 @@
 "use client";
 
 import React from "react";
-import { Activity, Briefcase, BookOpen } from "lucide-react";
+import { Activity, Briefcase, BookOpen, Users, Home, Gamepad2 } from "lucide-react";
+import { useApp } from "@/lib/store/app-context";
+import { getDomainFocusData, type Timeframe } from "@/lib/growth-analytics";
 
-interface DomainProgress {
-  name: string;
-  species: string;
-  hours: number;
-  tasksDone: number;
-  tasksTotal: number;
-  percentage: number;
-  yieldXp: number;
-  color: string;
-  icon: React.ElementType;
+const DOMAIN_ICONS: Record<string, React.ElementType> = {
+  health: Activity,
+  work: Briefcase,
+  learning: BookOpen,
+  volunteering: Users,
+  admin: Home,
+  hobbies: Gamepad2,
+};
+
+interface DomainProgressListProps {
+  timeframe: Timeframe;
 }
 
-const DOMAINS_PROGRESS: DomainProgress[] = [
-  {
-    name: "Health & Wellness",
-    species: "Vitality Wolf",
-    hours: 14,
-    tasksDone: 18,
-    tasksTotal: 20,
-    percentage: 90,
-    yieldXp: 1400,
-    color: "#10B981",
-    icon: Activity,
-  },
-  {
-    name: "Work & Projects",
-    species: "Byte Fox",
-    hours: 16,
-    tasksDone: 24,
-    tasksTotal: 25,
-    percentage: 96,
-    yieldXp: 1800,
-    color: "#3B82F6",
-    icon: Briefcase,
-  },
-  {
-    name: "Learning & Growth",
-    species: "Hydro Dragon",
-    hours: 6,
-    tasksDone: 8,
-    tasksTotal: 10,
-    percentage: 80,
-    yieldXp: 850,
-    color: "#8B5CF6",
-    icon: BookOpen,
-  },
-];
+export function DomainProgressList({ timeframe }: DomainProgressListProps) {
+  const { tasks, domains, focusSessions } = useApp();
+  const domainData = getDomainFocusData(focusSessions, tasks, domains, timeframe);
 
-export function DomainProgressList() {
+  if (domainData.length === 0) {
+    return (
+      <div className="bg-charcoal-surface border border-white/10 rounded p-6 space-y-5">
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-bold text-white tracking-tight">
+            Domain Goal Progress & Yield
+          </h3>
+          <span className="text-xs font-mono text-outline">
+            {timeframe}
+          </span>
+        </div>
+        <p className="text-xs text-outline font-mono text-center py-4">No focus sessions in this timeframe yet.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-charcoal-surface border border-white/10 rounded p-6 space-y-5">
       <div className="flex items-center justify-between">
@@ -59,16 +45,16 @@ export function DomainProgressList() {
           Domain Goal Progress & Yield
         </h3>
         <span className="text-xs font-mono text-outline">
-          Week 36 (Current)
+          {timeframe}
         </span>
       </div>
 
       <div className="space-y-4">
-        {DOMAINS_PROGRESS.map((item) => {
-          const Icon = item.icon;
+        {domainData.map((item) => {
+          const Icon = DOMAIN_ICONS[item.domainName.toLowerCase().split(" ")[0]] || Activity;
           return (
             <div
-              key={item.name}
+              key={item.domainId}
               className="p-4 rounded border border-white/5 bg-surface-container-lowest/60 flex flex-col md:flex-row md:items-center justify-between gap-4"
             >
               <div className="flex items-center gap-3">
@@ -83,7 +69,7 @@ export function DomainProgressList() {
                 </div>
                 <div>
                   <h4 className="text-sm font-semibold text-white">
-                    {item.name}
+                    {item.domainName}
                   </h4>
                   <div className="text-xs font-mono text-outline mt-0.5">
                     {item.hours}h logged · {item.tasksDone}/{item.tasksTotal} tasks ({item.percentage}%)

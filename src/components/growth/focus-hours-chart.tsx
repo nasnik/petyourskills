@@ -1,28 +1,19 @@
 "use client";
 
 import React from "react";
+import { useApp } from "@/lib/store/app-context";
+import { getDailyFocusData, type Timeframe } from "@/lib/growth-analytics";
 
-interface DayData {
-  day: string;
-  isCurrent?: boolean;
-  health: number; // height percent
-  work: number;
-  learning: number;
-  volunteering: number;
-  totalHours: number;
+interface FocusHoursChartProps {
+  timeframe: Timeframe;
 }
 
-const WEEK_DATA: DayData[] = [
-  { day: "Mon", health: 25, work: 20, learning: 15, volunteering: 0, totalHours: 4.8 },
-  { day: "Tue", health: 20, work: 30, learning: 20, volunteering: 15, totalHours: 6.8 },
-  { day: "Wed", health: 22, work: 45, learning: 0, volunteering: 0, totalHours: 5.4 },
-  { day: "Thu", isCurrent: true, health: 18, work: 35, learning: 12, volunteering: 20, totalHours: 7.4 },
-  { day: "Fri", health: 20, work: 25, learning: 25, volunteering: 0, totalHours: 5.6 },
-  { day: "Sat", health: 25, work: 0, learning: 0, volunteering: 15, totalHours: 3.2 },
-  { day: "Sun", health: 30, work: 0, learning: 15, volunteering: 0, totalHours: 3.6 },
-];
+export function FocusHoursChart({ timeframe }: FocusHoursChartProps) {
+  const { focusSessions, tasks, domains } = useApp();
+  const chartData = getDailyFocusData(focusSessions, tasks, domains, timeframe);
 
-export function FocusHoursChart() {
+  const maxTotalHours = Math.max(...chartData.map(d => d.totalHours), 1);
+  
   return (
     <div className="bg-charcoal-surface border border-white/10 rounded p-6 space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -31,7 +22,7 @@ export function FocusHoursChart() {
             Daily Domain Focus Hours
           </h3>
           <p className="text-xs text-outline font-mono mt-0.5">
-            Distribution of concentrated work over the selected week
+            Distribution of concentrated work over the selected period
           </p>
         </div>
 
@@ -58,7 +49,7 @@ export function FocusHoursChart() {
 
       {/* Chart Canvas */}
       <div className="h-56 flex items-end justify-between gap-2 pt-6 pb-2 border-b border-white/10">
-        {WEEK_DATA.map((item) => (
+        {chartData.map((item) => (
           <div
             key={item.day}
             className="flex-1 flex flex-col items-center h-full justify-end group cursor-pointer"
@@ -70,27 +61,38 @@ export function FocusHoursChart() {
 
             {/* Stacked bar */}
             <div className="w-full max-w-[48px] bg-surface-container-low rounded-t flex flex-col-reverse overflow-hidden h-[180px] justify-start transition-all group-hover:brightness-110">
-              <div
-                style={{ height: `${item.health}%` }}
-                className="w-full bg-wellness-emerald shrink-0"
-              />
-              <div
-                style={{ height: `${item.work}%` }}
-                className="w-full bg-work-electric-blue shrink-0"
-              />
-              <div
-                style={{ height: `${item.learning}%` }}
-                className="w-full bg-learning-violet shrink-0"
-              />
-              <div
-                style={{ height: `${item.volunteering}%` }}
-                className="w-full bg-hobbies-orange shrink-0"
-              />
+              {item.health > 0 && (
+                <div
+                  style={{ height: `${item.health}%` }}
+                  className="w-full bg-wellness-emerald shrink-0"
+                />
+              )}
+              {item.work > 0 && (
+                <div
+                  style={{ height: `${item.work}%` }}
+                  className="w-full bg-work-electric-blue shrink-0"
+                />
+              )}
+              {item.learning > 0 && (
+                <div
+                  style={{ height: `${item.learning}%` }}
+                  className="w-full bg-learning-violet shrink-0"
+                />
+              )}
+              {item.volunteering > 0 && (
+                <div
+                  style={{ height: `${item.volunteering}%` }}
+                  className="w-full bg-hobbies-orange shrink-0"
+                />
+              )}
+              {(item.health === 0 && item.work === 0 && item.learning === 0 && item.volunteering === 0) && (
+                <div className="w-full h-2 bg-white/5 shrink-0" />
+              )}
             </div>
 
             <span
               className={`text-xs font-mono mt-2 ${
-                item.isCurrent
+                item.date.toDateString() === new Date().toDateString()
                   ? "text-wellness-emerald font-bold"
                   : "text-outline"
               }`}
@@ -103,8 +105,10 @@ export function FocusHoursChart() {
 
       <div className="flex items-center justify-between text-xs font-mono text-outline">
         <span>0.0h Baseline</span>
-        <span>Average: 5.5h / day</span>
-        <span className="text-wellness-emerald font-semibold">Max: 7.4h (Thu)</span>
+        <span>Average: {Math.round((chartData.reduce((a, b) => a + b.totalHours, 0) / chartData.length) * 10) / 10}h / day</span>
+        <span className="text-wellness-emerald font-semibold">
+          Max: {Math.max(...chartData.map(d => d.totalHours))}h
+        </span>
       </div>
     </div>
   );
