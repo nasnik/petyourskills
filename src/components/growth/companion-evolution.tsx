@@ -6,6 +6,10 @@ import { getDomainAvatarEmoji } from "@/lib/avatar-utils";
 import { useApp } from "@/lib/store/app-context";
 import { getAllCompanionsEvolutionData, type CompanionEvolutionData } from "@/lib/growth-analytics";
 
+function formatNumber(n: number): string {
+  return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
 function CompanionCard({ companion, isPrimary }: { companion: CompanionEvolutionData; isPrimary: boolean }) {
   const cardClass = isPrimary 
     ? "bg-surface-container-lowest/80 border border-wellness-emerald/30 p-5 relative overflow-hidden flex flex-col items-center text-center space-y-4"
@@ -38,7 +42,7 @@ function CompanionCard({ companion, isPrimary }: { companion: CompanionEvolution
         <div className="flex justify-between text-[10px] font-mono text-outline">
           <span>Evolution Progress</span>
           <span className="text-white font-semibold">
-            {companion.progress.toFixed(0)}% ({companion.currentXp.toLocaleString()} / {companion.nextThreshold.toLocaleString()} XP)
+            {companion.progress.toFixed(0)}% ({formatNumber(companion.currentXp)} / {formatNumber(companion.nextThreshold)} XP)
           </span>
         </div>
         <div className="w-full bg-obsidian-deep h-1.5 rounded-full overflow-hidden">
@@ -52,7 +56,7 @@ function CompanionCard({ companion, isPrimary }: { companion: CompanionEvolution
           />
         </div>
         <p className="text-[10px] font-mono text-outline text-center">
-          {companion.xpNeeded} XP needed for next evolution
+          {formatNumber(companion.xpNeeded)} XP needed for next evolution
         </p>
       </div>
 
@@ -60,7 +64,7 @@ function CompanionCard({ companion, isPrimary }: { companion: CompanionEvolution
       <div className="w-full pt-2 border-t border-white/5 flex items-center justify-center gap-2 text-[10px] font-mono">
         <span className="text-outline">XP this period:</span>
         <span className="font-bold" style={{ color: companion.color }}>
-          +{companion.xpInPeriod.toLocaleString()}
+          +{formatNumber(companion.xpInPeriod)}
         </span>
         <Zap size={10} style={{ color: companion.color }} />
       </div>

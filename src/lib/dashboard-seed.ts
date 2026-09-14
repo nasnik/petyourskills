@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
 import { calculateUserRank } from "@/lib/gamification/xp-engine";
-import { LifeDomainItem, TaskItem, UserProfile } from "@/types";
+import { LifeDomainItem, TaskItem, UserProfile, FocusSessionItem } from "@/types";
 import { INITIAL_USER_PROFILE, INITIAL_DOMAINS, INITIAL_TASKS } from "@/lib/mock-data";
 import { getPysUidFromCookie } from "@/actions/auth";
 import { getPysSharedFromCookie } from "@/actions/collaboration";
@@ -118,6 +118,7 @@ export interface DashboardSeedData {
   user: UserProfile;
   domains: LifeDomainItem[];
   tasks: TaskItem[];
+  focusSessions: FocusSessionItem[];
 }
 /**
  * Builds a scoped workspace for a shared project: ONE synthetic domain that
@@ -244,6 +245,7 @@ function buildMockGuestSeedData(
     },
     domains,
     tasks,
+    focusSessions: [],
   };
 }
 
@@ -293,7 +295,7 @@ export async function fetchDashboardSeedData(): Promise<DashboardSeedData> {
         sharedCookieProjectId
       );
       if (demoGuest) return demoGuest;
-      return { user: INITIAL_USER_PROFILE, domains: INITIAL_DOMAINS, tasks: INITIAL_TASKS };
+      return { user: INITIAL_USER_PROFILE, domains: INITIAL_DOMAINS, tasks: INITIAL_TASKS, focusSessions: [] };
     }
 
     // --- 3. Fetch full user record with domains + tasks ---
@@ -317,7 +319,7 @@ export async function fetchDashboardSeedData(): Promise<DashboardSeedData> {
       // Cookie points at a demo guest id that has no DB record
       const demoGuest = buildMockGuestSeedData(dbUserId, sharedCookieProjectId);
       if (demoGuest) return demoGuest;
-      return { user: INITIAL_USER_PROFILE, domains: INITIAL_DOMAINS, tasks: INITIAL_TASKS };
+      return { user: INITIAL_USER_PROFILE, domains: INITIAL_DOMAINS, tasks: INITIAL_TASKS, focusSessions: [] };
     }
 
     // --- 3b. Anonymous guest: scoped seed with ONLY the shared project ---
@@ -333,6 +335,7 @@ export async function fetchDashboardSeedData(): Promise<DashboardSeedData> {
           user: buildGuestUserProfile(dbUser, sharedProjectId),
           domains: workspace.domains,
           tasks: workspace.tasks,
+          focusSessions: [],
         };
       }
 
@@ -341,6 +344,7 @@ export async function fetchDashboardSeedData(): Promise<DashboardSeedData> {
         user: buildGuestUserProfile(dbUser, sharedProjectId ?? ""),
         domains: [],
         tasks: [],
+        focusSessions: [],
       };
     }
 
@@ -476,7 +480,25 @@ export async function fetchDashboardSeedData(): Promise<DashboardSeedData> {
       dbUser.id
     );
 
-    return { user: userProfile, domains: resetDomains, tasks: resetTasks };
+    // --- 5. Fetch focus sessions ---
+    const dbFocusSessions = await prisma.focusSession.findMany({
+      where: { userId: dbUser.id },
+      include: { task: true },
+      orderBy: { completedAt: "desc" },
+    });
+
+    const focusSessions: FocusSessionItem[] = dbFocusSessions.map((s) => ({
+      id: s.id,
+      userId: s.userId,
+      taskId: s.taskId,
+      durationSeconds: s.durationSeconds,
+      verifiedXp: s.verifiedXp,
+      startedAt: s.startedAt.toISOString(),
+      completedAt: s.completedAt.toISOString(),
+      task: s.task ? mapDbTask(s.task) : null,
+    }));
+
+    return { user: userProfile, domains: resetDomains, tasks: resetTasks, focusSessions };
   } catch (err) {
     console.error("[fetchDashboardSeedData] error, falling back to mock data:", err);
     // Last-resort demo guest workspace (passkey join without a database)
@@ -493,13 +515,13 @@ export async function fetchDashboardSeedData(): Promise<DashboardSeedData> {
           demoGuest.tasks,
           demoGuest.domains
         );
-        return { ...demoGuest, tasks, domains };
+        return { ...demoGuest, tasks, domains, focusSessions: [] };
       }
     } catch {}
     const { tasks, domains } = resetDailyRoutineTasksClient(
       INITIAL_TASKS,
       INITIAL_DOMAINS
     );
-    return { user: INITIAL_USER_PROFILE, domains, tasks };
+    return { user: INITIAL_USER_PROFILE, domains, tasks, focusSessions: [] };
   }
 }

@@ -9,7 +9,6 @@ import { useApp } from "@/lib/store/app-context";
 import { Clock, CheckCircle, Zap, Flame } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  getTimeframeMs,
   filterSessionsByTimeframe,
   calculateTotalFocusTime,
   formatDuration,
@@ -17,6 +16,7 @@ import {
   calculateTaskCompletionRate,
   calculateTotalXP,
   calculateStreak,
+  getPreviousTimeframeRange,
   type Timeframe,
 } from "@/lib/growth-analytics";
 
@@ -31,14 +31,13 @@ export default function GrowthPage() {
     const completedTasks = calculateCompletedTasks(filtered, tasks);
     const completionRate = calculateTaskCompletionRate(filtered, tasks);
     const totalXP = calculateTotalXP(filtered);
-    const streak = calculateStreak(filtered);
+    const streak = calculateStreak(focusSessions, tasks);
 
-    // Previous period comparison
-    const prevCutoff = Date.now() - getTimeframeMs(timeframe) * 2;
-    const prevStart = Date.now() - getTimeframeMs(timeframe);
+    // Previous period comparison using calendar day boundaries
+    const { start: prevStart, end: prevEnd } = getPreviousTimeframeRange(timeframe);
     const prevSessions = focusSessions.filter(s => {
       const t = new Date(s.completedAt).getTime();
-      return t >= prevCutoff && t < prevStart;
+      return t >= prevStart.getTime() && t <= prevEnd.getTime();
     });
     const prevTotalSeconds = calculateTotalFocusTime(prevSessions);
     const prevChange = prevTotalSeconds > 0 
@@ -114,15 +113,11 @@ export default function GrowthPage() {
           <p className="text-[11px] font-mono text-outline">
             vs {formatDuration(
               calculateTotalFocusTime(
-                filterSessionsByTimeframe(
-                  focusSessions.filter(s => {
-                    const t = new Date(s.completedAt).getTime();
-                    const prevCutoff = Date.now() - getTimeframeMs(timeframe) * 2;
-                    const prevStart = Date.now() - getTimeframeMs(timeframe);
-                    return t >= prevCutoff && t < prevStart;
-                  }),
-                  timeframe
-                )
+                focusSessions.filter(s => {
+                  const t = new Date(s.completedAt).getTime();
+                  const { start: prevStart, end: prevEnd } = getPreviousTimeframeRange(timeframe);
+                  return t >= prevStart.getTime() && t <= prevEnd.getTime();
+                })
               )
             )} previous period
           </p>

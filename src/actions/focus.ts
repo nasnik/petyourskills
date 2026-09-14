@@ -3,23 +3,33 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 
+export async function getFocusSessionsAction(userId: string) {
+  try {
+    const sessions = await prisma.focusSession.findMany({
+      where: { userId },
+      include: { task: true },
+      orderBy: { completedAt: "desc" },
+    });
+
+    return { success: true, sessions };
+  } catch (error) {
+    console.error("Error fetching focus sessions:", error);
+    return { success: false, error: String(error), sessions: [] };
+  }
+}
+
 export async function recordFocusSessionAction(data: {
+  userId: string;
   taskId?: string | null;
   durationSeconds: number;
   verifiedXp: number;
   startedAt: string;
 }) {
   try {
-    const user = await prisma.user.findFirst({
-      where: { email: "commander@agency.dev" },
-    });
-
-    if (!user) throw new Error("User not found");
-
     const session = await prisma.$transaction(async (tx) => {
       const newSession = await tx.focusSession.create({
         data: {
-          userId: user.id,
+          userId: data.userId,
           taskId: data.taskId || null,
           durationSeconds: data.durationSeconds,
           verifiedXp: data.verifiedXp,
@@ -29,7 +39,7 @@ export async function recordFocusSessionAction(data: {
       });
 
       await tx.user.update({
-        where: { id: user.id },
+        where: { id: data.userId },
         data: {
           totalXp: { increment: data.verifiedXp },
         },

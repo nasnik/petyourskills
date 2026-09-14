@@ -14,10 +14,10 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { user, domains, tasks } = await fetchDashboardSeedData();
+  const { user, domains, tasks, focusSessions } = await fetchDashboardSeedData();
 
   return (
-    <AppProvider initialUser={user} initialDomains={domains} initialTasks={tasks}>
+    <AppProvider initialUser={user} initialDomains={domains} initialTasks={tasks} initialFocusSessions={focusSessions}>
       <div className="flex h-screen w-screen overflow-hidden bg-obsidian-deep text-on-surface">
         {/* Persistent Left Sidebar */}
         <Sidebar />

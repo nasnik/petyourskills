@@ -15,8 +15,93 @@ export function filterSessionsByTimeframe(
   sessions: FocusSessionItem[],
   timeframe: Timeframe
 ): FocusSessionItem[] {
-  const cutoff = Date.now() - getTimeframeMs(timeframe);
-  return sessions.filter((s) => new Date(s.completedAt).getTime() >= cutoff);
+  const now = new Date();
+  const todayStart = new Date(now);
+  todayStart.setHours(0, 0, 0, 0);
+  
+  let cutoff: Date;
+  switch (timeframe) {
+    case "Day":
+      cutoff = new Date(todayStart);
+      break;
+    case "Week":
+      cutoff = new Date(todayStart);
+      cutoff.setDate(cutoff.getDate() - 6); // Last 7 calendar days including today
+      break;
+    case "Month":
+      cutoff = new Date(todayStart);
+      cutoff.setDate(cutoff.getDate() - 29); // Last 30 calendar days including today
+      break;
+    case "Year":
+      cutoff = new Date(todayStart);
+      cutoff.setDate(cutoff.getDate() - 364); // Last 365 calendar days including today
+      break;
+  }
+  
+  const cutoffMs = cutoff.getTime();
+  return sessions.filter((s) => new Date(s.completedAt).getTime() >= cutoffMs);
+}
+
+export function getTimeframeRange(timeframe: Timeframe): { start: Date; end: Date } {
+  const now = new Date();
+  const todayStart = new Date(now);
+  todayStart.setHours(0, 0, 0, 0);
+  const todayEnd = new Date(todayStart);
+  todayEnd.setDate(todayEnd.getDate() + 1);
+  todayEnd.setMilliseconds(-1); // End of today
+  
+  let start: Date;
+  switch (timeframe) {
+    case "Day":
+      start = new Date(todayStart);
+      break;
+    case "Week":
+      start = new Date(todayStart);
+      start.setDate(start.getDate() - 6);
+      break;
+    case "Month":
+      start = new Date(todayStart);
+      start.setDate(start.getDate() - 29);
+      break;
+    case "Year":
+      start = new Date(todayStart);
+      start.setDate(start.getDate() - 364);
+      break;
+  }
+  
+  return { start, end: todayEnd };
+}
+
+export function getPreviousTimeframeRange(timeframe: Timeframe): { start: Date; end: Date } {
+  const { start } = getTimeframeRange(timeframe);
+  const prevEnd = new Date(start);
+  prevEnd.setMilliseconds(-1); // End of day before current period
+  
+  let prevStart: Date;
+  switch (timeframe) {
+    case "Day":
+      prevStart = new Date(prevEnd);
+      prevStart.setDate(prevStart.getDate() - 1);
+      prevStart.setHours(0, 0, 0, 0);
+      break;
+    case "Week":
+      prevStart = new Date(prevEnd);
+      prevStart.setDate(prevStart.getDate() - 6);
+      prevStart.setHours(0, 0, 0, 0);
+      break;
+    case "Month":
+      prevStart = new Date(prevEnd);
+      prevStart.setDate(prevStart.getDate() - 29);
+      prevStart.setHours(0, 0, 0, 0);
+      break;
+    case "Year":
+      prevStart = new Date(prevEnd);
+      prevStart.setDate(prevStart.getDate() - 364);
+      prevStart.setHours(0, 0, 0, 0);
+      break;
+  }
+  
+  return { start: prevStart, end: prevEnd };
 }
 
 export function calculateTotalFocusTime(sessions: FocusSessionItem[]): number {
@@ -49,29 +134,34 @@ export function calculateTotalXP(sessions: FocusSessionItem[]): number {
   return sessions.reduce((sum, s) => sum + s.verifiedXp, 0);
 }
 
-export function calculateStreak(sessions: FocusSessionItem[]): number {
-  if (sessions.length === 0) return 0;
+export function calculateStreak(sessions: FocusSessionItem[], tasks?: TaskItem[]): number {
+  if (sessions.length === 0 && (!tasks || tasks.length === 0)) return 0;
   
-  const dates = [...new Set(sessions.map(s => s.completedAt.split('T')[0]))]
-    .map(d => new Date(d).getTime())
+  const sessionDates = [...new Set(sessions.map(s => s.completedAt.split('T')[0]))]
+    .map(d => new Date(d + 'T00:00:00Z').getTime());
+  
+  const taskDates = tasks
+    ? [...new Set(tasks.filter(t => t.isCompleted && t.doneAt).map(t => t.doneAt!.split('T')[0]))]
+        .map(d => new Date(d + 'T00:00:00Z').getTime())
+    : [];
+  
+  const allDates = [...new Set([...sessionDates, ...taskDates])]
     .sort((a, b) => b - a);
   
+  if (allDates.length === 0) return 0;
+
   let streak = 1;
   const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const todayMs = today.getTime();
+  const todayUTC = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
   
-  if (dates[0] !== todayMs) {
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-    if (dates[0] !== yesterday.getTime()) return 0;
+  if (allDates[0] !== todayUTC) {
+    const yesterdayUTC = todayUTC - 24 * 60 * 60 * 1000;
+    if (allDates[0] !== yesterdayUTC) return 0;
   }
   
-  for (let i = 1; i < dates.length; i++) {
-    const prev = new Date(dates[i - 1]);
-    const curr = new Date(dates[i]);
-    prev.setDate(prev.getDate() - 1);
-    if (prev.getTime() === curr.getTime()) {
+  for (let i = 1; i < allDates.length; i++) {
+    const prevUTC = allDates[i - 1] - 24 * 60 * 60 * 1000;
+    if (prevUTC === allDates[i]) {
       streak++;
     } else {
       break;

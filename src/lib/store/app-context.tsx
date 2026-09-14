@@ -81,6 +81,7 @@ interface AppProviderProps {
   initialUser?: UserProfile;
   initialDomains?: LifeDomainItem[];
   initialTasks?: TaskItem[];
+  initialFocusSessions?: FocusSessionItem[];
 }
 
 export function AppProvider({
@@ -88,6 +89,7 @@ export function AppProvider({
   initialUser,
   initialDomains,
   initialTasks,
+  initialFocusSessions,
 }: AppProviderProps) {
   const [user, setUser] = useState<UserProfile>(initialUser ?? INITIAL_USER_PROFILE);
   const [domains, setDomains] = useState<LifeDomainItem[]>(initialDomains ?? INITIAL_DOMAINS);
@@ -97,20 +99,9 @@ export function AppProvider({
   // Multi-Task Project Kanban Workspace state
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
 
-  const preSeededSessions: FocusSessionItem[] = [
-    { id: "fs-1", userId: "usr-anastasia-01", taskId: "task-2", durationSeconds: 1800, verifiedXp: 150, startedAt: "2026-09-06T07:00:00Z", completedAt: "2026-09-06T07:30:00Z", task: INITIAL_TASKS[1] },
-    { id: "fs-2", userId: "usr-anastasia-01", taskId: "task-6", durationSeconds: 3600, verifiedXp: 100, startedAt: "2026-09-05T14:00:00Z", completedAt: "2026-09-05T15:00:00Z", task: INITIAL_TASKS[5] },
-    { id: "fs-3", userId: "usr-anastasia-01", taskId: "task-4", durationSeconds: 2700, verifiedXp: 120, startedAt: "2026-09-04T10:00:00Z", completedAt: "2026-09-04T10:45:00Z", task: INITIAL_TASKS[3] },
-    { id: "fs-4", userId: "usr-anastasia-01", taskId: "task-3", durationSeconds: 1800, verifiedXp: 200, startedAt: "2026-09-03T18:00:00Z", completedAt: "2026-09-03T18:30:00Z", task: INITIAL_TASKS[2] },
-    { id: "fs-5", userId: "usr-anastasia-01", taskId: "task-1", durationSeconds: 3000, verifiedXp: 250, startedAt: "2026-09-02T09:00:00Z", completedAt: "2026-09-02T09:50:00Z", task: INITIAL_TASKS[0] },
-    { id: "fs-6", userId: "usr-anastasia-01", taskId: undefined, durationSeconds: 1200, verifiedXp: 50, startedAt: "2026-09-01T07:00:00Z", completedAt: "2026-09-01T07:20:00Z", task: null },
-    { id: "fs-7", userId: "usr-anastasia-01", taskId: "task-9", durationSeconds: 3600, verifiedXp: 200, startedAt: "2026-08-30T09:00:00Z", completedAt: "2026-08-30T10:00:00Z", task: INITIAL_TASKS[8] },
-    { id: "fs-8", userId: "usr-anastasia-01", taskId: "task-10", durationSeconds: 1800, verifiedXp: 100, startedAt: "2026-08-29T15:00:00Z", completedAt: "2026-08-29T15:30:00Z", task: INITIAL_TASKS[9] },
-  ];
-
   const [isFocusModalOpen, setIsFocusModalOpen] = useState(false);
   const [focusTargetTask, setFocusTargetTask] = useState<TaskItem | null>(null);
-  const [focusSessions, setFocusSessions] = useState<FocusSessionItem[]>(preSeededSessions);
+  const [focusSessions, setFocusSessions] = useState<FocusSessionItem[]>(initialFocusSessions ?? []);
 
   const [inspectingTask, setInspectingTask] = useState<TaskItem | null>(null);
 
@@ -562,6 +553,7 @@ export function AppProvider({
     // Persist focus session to Neon DB via Server Action
     import("@/actions/focus").then(({ recordFocusSessionAction }) => {
       recordFocusSessionAction({
+        userId: user.id,
         taskId: task?.id || null,
         durationSeconds,
         verifiedXp: earnedXp,
