@@ -2,9 +2,6 @@
 
 import React, { useEffect } from "react";
 import Link from "next/link";
-import { ActiveCompanionCard } from "@/components/dashboard/active-companion-card";
-import { DailyXpGauge } from "@/components/dashboard/daily-xp-gauge";
-import { PetHappinessCard } from "@/components/dashboard/pet-happiness-card";
 import { QuestList } from "@/components/dashboard/quest-list";
 import { DailyYieldBanner } from "@/components/dashboard/daily-yield-banner";
 import { DailyCompletionSummary } from "@/components/dashboard/daily-completion-summary";
@@ -149,13 +146,6 @@ export default function DashboardPage() {
             <span>{user.rankTitle} Tier {user.rankTier}</span>
           </span>
         </div>
-      </div>
-
-      {/* Top 3 Widget Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        <ActiveCompanionCard />
-        <DailyXpGauge />
-        <PetHappinessCard />
       </div>
 
       {/* Daily Completion Summary */}

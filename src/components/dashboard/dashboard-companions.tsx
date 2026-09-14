@@ -29,7 +29,7 @@ export function DashboardCompanions() {
               {domain.name}
             </div>
             <div className="flex items-center gap-1 text-xs font-bold text-white">
-              <span className="font-mono">{domain.currentXp.toLocaleString()}</span>
+              <span className="font-mono">{domain.currentXp.toLocaleString("en-US")}</span>
               <span className="text-outline">XP</span>
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-outline">
                 Lv.{domain.level}
@@ -38,7 +38,7 @@ export function DashboardCompanions() {
           </div>
           <div className="sm:hidden text-left">
             <div className="flex items-center gap-1 text-xs font-bold text-white">
-              <span className="font-mono">{domain.currentXp.toLocaleString()}</span>
+              <span className="font-mono">{domain.currentXp.toLocaleString("en-US")}</span>
               <span className="text-outline">XP</span>
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-outline">
                 Lv.{domain.level}

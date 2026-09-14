@@ -22,7 +22,7 @@ test.describe("Demo dashboard", () => {
 
     // Personal dashboard widgets
     await expect(page.getByText("Quick Log Action")).toBeVisible();
-    await expect(page.getByText("Start Focus Session")).toBeVisible();
+    await expect(page.getByText("Daily Completion")).toBeVisible();
 
     // Sidebar exposes the seeded life domains (multiple matches on the page —
     // domain accordion, quest cards, pet labels — so use .first())
