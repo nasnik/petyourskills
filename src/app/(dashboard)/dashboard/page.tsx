@@ -9,6 +9,7 @@ import { QuestList } from "@/components/dashboard/quest-list";
 import { DailyYieldBanner } from "@/components/dashboard/daily-yield-banner";
 import { DailyCompletionSummary } from "@/components/dashboard/daily-completion-summary";
 import { ProjectKanbanBoard } from "@/components/kanban/project-kanban-board";
+import { DashboardCompanions } from "@/components/dashboard/dashboard-companions";
 import { useApp } from "@/lib/store/app-context";
 import { Zap, Plus, Users, FolderKanban, ArrowRight, UserPlus } from "lucide-react";
 
@@ -128,10 +129,13 @@ export default function DashboardPage() {
       {/* Page Title & Rank Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-white font-hanken">
-            Dashboard
-          </h1>
-          <p className="text-xs font-mono text-outline mt-1">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <h1 className="text-3xl font-bold tracking-tight text-white font-hanken">
+              Dashboard
+            </h1>
+            <DashboardCompanions />
+          </div>
+          <p className="text-xs font-mono text-outline mt-1 sm:mt-0 sm:ml-12">
             Monday, September 7, 2026
           </p>
         </div>

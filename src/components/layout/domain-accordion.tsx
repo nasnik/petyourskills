@@ -8,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ChevronDown, Layers, Trash2, CalendarX } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { expandEvents, toDateStr } from "@/lib/calendar/expand-events";
+import { getDomainAvatarEmoji } from "@/lib/avatar-utils";
 
 interface DomainAccordionProps {
   domain: LifeDomainItem;
@@ -205,10 +206,9 @@ export function DomainAccordion({
                       )}
                     >
                       <div className="flex items-center gap-2 min-w-0">
-                        <span
-                          className="w-1.5 h-1.5 rounded-full"
-                          style={{ backgroundColor: domain.accentColor }}
-                        />
+                        <span className="text-base shrink-0" aria-hidden="true">
+                          {getDomainAvatarEmoji(domain.avatarSpecies)}
+                        </span>
                         <span className="truncate font-medium">{proj.title}</span>
                       </div>
 

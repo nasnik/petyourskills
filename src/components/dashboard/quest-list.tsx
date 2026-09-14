@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { formatFriendlyDate } from "@/components/shared/skill-schedule-config";
 import { TaskItem } from "@/types";
 import { getTodayString } from "@/lib/schedule-utils";
+import { getDomainAvatarEmoji } from "@/lib/avatar-utils";
 
 function getScheduleBadge(task: TaskItem) {
   const rc = task.repeatConfig;
@@ -273,10 +274,13 @@ export function QuestList() {
                   <div className="min-w-0">
                     <h4
                       className={cn(
-                        "text-sm font-semibold text-white truncate",
+                        "text-sm font-semibold text-white truncate flex items-center gap-2",
                         task.isCompleted && "line-through text-outline"
                       )}
                     >
+                      <span className="text-lg shrink-0" aria-hidden="true">
+                        {getDomainAvatarEmoji(domain?.avatarSpecies)}
+                      </span>
                       {task.title}
                       {isProject && (
                         <span className="ml-2 text-[10px] font-mono px-1.5 py-0.5 rounded bg-purple-500/20 border border-purple-500/30 text-purple-300">

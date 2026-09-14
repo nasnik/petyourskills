@@ -25,6 +25,7 @@ import {
 import { cn } from "@/lib/utils";
 import { expandEvents, toDateStr } from "@/lib/calendar/expand-events";
 import { TaskItem } from "@/types";
+import { getDomainAvatarEmoji } from "@/lib/avatar-utils";
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -349,13 +350,16 @@ export function Sidebar() {
                           onChange={() => toggleTaskComplete(task.id)}
                         />
                         <div className="min-w-0 flex-1">
-                          {/* Primary Habit Title */}
+                          {/* Primary Habit Title with Domain Avatar */}
                           <div
                             className={cn(
-                              "font-semibold text-white truncate text-xs transition-colors",
+                              "font-semibold text-white truncate text-xs transition-colors flex items-center gap-1.5",
                               task.isCompleted && "line-through text-outline"
                             )}
                           >
+                            <span className="text-base shrink-0" aria-hidden="true">
+                              {getDomainAvatarEmoji(domain?.avatarSpecies)}
+                            </span>
                             {task.title}
                           </div>
                           {/* Subtle Domain Subtitle Tag */}
@@ -480,9 +484,12 @@ export function Sidebar() {
                           </div>
                           <div className="min-w-0">
                             <div className={cn(
-                              "font-semibold text-white truncate text-xs transition-colors",
+                              "font-semibold text-white truncate text-xs transition-colors flex items-center gap-1.5",
                               isCompleted && "line-through text-outline"
                             )}>
+                              <span className="text-base shrink-0" aria-hidden="true">
+                                {getDomainAvatarEmoji(projDomain?.avatarSpecies)}
+                              </span>
                               {proj.title}
                             </div>
                             <div className="text-[10px] font-mono text-outline truncate">
