@@ -13,6 +13,7 @@ import {
   CheckCircle2,
   Trash2,
   Zap,
+  User,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatFriendlyDate } from "@/components/shared/skill-schedule-config";
@@ -30,12 +31,14 @@ export function TaskInspectorDrawer() {
   const [title, setTitle] = useState("");
   const [xpReward, setXpReward] = useState(25);
   const [estimatedMinutes, setEstimatedMinutes] = useState<number>(30);
+  const [assignee, setAssignee] = useState("");
 
   useEffect(() => {
     if (inspectingTask) {
       setTitle(inspectingTask.title);
       setXpReward(inspectingTask.xpReward || 25);
       setEstimatedMinutes(inspectingTask.estimatedMinutes || 30);
+      setAssignee(inspectingTask.assignee?.name || "");
     }
   }, [inspectingTask]);
 
@@ -50,6 +53,7 @@ export function TaskInspectorDrawer() {
       title,
       xpReward,
       estimatedMinutes,
+      assignee: assignee.trim() ? { id: "manual", name: assignee.trim() } : null,
     });
     closeTaskInspector();
   };
@@ -169,6 +173,17 @@ export function TaskInspectorDrawer() {
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="Quest or habit name..."
                 className="text-base font-semibold"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-mono uppercase text-outline mb-1.5">
+                Assignee (optional)
+              </label>
+              <Input
+                value={assignee}
+                onChange={(e) => setAssignee(e.target.value)}
+                placeholder="Enter assignee name..."
               />
             </div>
 

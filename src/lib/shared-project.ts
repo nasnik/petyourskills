@@ -32,6 +32,7 @@ export function mapDbTask(t: {
   estimatedMinutes: number | null;
   repeatConfig: unknown;
   sortOrder: number;
+  assignee?: any;
 }): TaskItem {
   return {
     id: t.id,
@@ -45,6 +46,9 @@ export function mapDbTask(t: {
     estimatedMinutes: t.estimatedMinutes,
     repeatConfig: t.repeatConfig as TaskItem["repeatConfig"],
     sortOrder: t.sortOrder,
+    assignee: t.assignee && typeof t.assignee === 'object' && 'id' in t.assignee && 'name' in t.assignee
+      ? { id: t.assignee.id as string, name: t.assignee.name as string }
+      : null,
   };
 }
 

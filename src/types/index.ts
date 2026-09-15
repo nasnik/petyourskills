@@ -59,6 +59,7 @@ export interface TaskItem {
   sortOrder: number;
   domain?: LifeDomainItem;
   planningEngineType?: "DAILY_ROUTINE" | "MULTI_TASK" | "CUSTOM_SCHEDULE" | "SPECIFIC_DATE";
+  assignee?: { id: string; name: string; avatar?: string } | null;
 }
 
 export interface FocusSessionItem {

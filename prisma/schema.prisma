@@ -110,6 +110,7 @@ model Task {
   estimatedMinutes Int?           @map("estimated_minutes")
   repeatConfig     Json?          @map("repeat_config")
   sortOrder        Int            @default(0) @map("sort_order")
+  assignee         Json?          @map("assignee")
   createdAt        DateTime       @default(now()) @map("created_at")
   updatedAt        DateTime       @updatedAt @map("updated_at")
 

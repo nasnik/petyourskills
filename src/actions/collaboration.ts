@@ -314,6 +314,7 @@ export async function addSharedProjectTaskAction(data: {
   columnId?: "TODO" | "IN_PROGRESS" | "REVIEW" | "DONE";
   xpReward?: number;
   estimatedMinutes?: number | null;
+  assignee?: { id: string; name: string } | null;
 }): Promise<{ success: boolean; taskId?: string; error?: string }> {
   try {
     const title = data.title?.trim();

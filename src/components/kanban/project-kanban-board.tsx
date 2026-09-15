@@ -21,6 +21,7 @@ import {
   Edit3,
   KeyRound,
   Share2,
+  User,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ShareModal } from "./share-modal";
@@ -72,6 +73,7 @@ export function ProjectKanbanBoard({ projectId }: ProjectKanbanBoardProps) {
   const [mounted, setMounted] = useState(false);
   const [inlineAddingCol, setInlineAddingCol] = useState<string | null>(null);
   const [newCardTitle, setNewCardTitle] = useState("");
+  const [newCardAssignee, setNewCardAssignee] = useState("");
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
   // Live-sync plumbing: latest function/ids via refs so the poller never
@@ -207,9 +209,11 @@ export function ProjectKanbanBoard({ projectId }: ProjectKanbanBoardProps) {
       columnId,
       xpReward: 30,
       estimatedMinutes: 25,
+      assignee: newCardAssignee.trim() ? { id: "manual", name: newCardAssignee.trim() } : null,
     });
 
     setNewCardTitle("");
+    setNewCardAssignee("");
     setInlineAddingCol(null);
   };
 
@@ -416,6 +420,13 @@ export function ProjectKanbanBoard({ projectId }: ProjectKanbanBoardProps) {
                       }}
                       className="w-full bg-obsidian-deep border border-white/15 rounded px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-wellness-emerald"
                     />
+                    <input
+                      type="text"
+                      value={newCardAssignee}
+                      onChange={(e) => setNewCardAssignee(e.target.value)}
+                      placeholder="Assignee (optional)..."
+                      className="w-full bg-obsidian-deep border border-white/15 rounded px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-wellness-emerald"
+                    />
                     <div className="flex items-center justify-end gap-2">
                       <button
                         type="button"
@@ -497,6 +508,14 @@ export function ProjectKanbanBoard({ projectId }: ProjectKanbanBoardProps) {
                                   <Trash2 size={13} />
                                 </button>
                               </div>
+
+                              {/* Assignee */}
+                              {task.assignee && (
+                                <div className="flex items-center gap-1.5 text-[10px] font-mono">
+                                  <User size={11} className="text-outline" />
+                                  <span className="text-outline">{task.assignee.name}</span>
+                                </div>
+                              )}
 
                               {/* Card Meta & XP Badge */}
                               <div className="flex items-center justify-between text-[10px] font-mono text-outline pt-1 border-t border-white/5">

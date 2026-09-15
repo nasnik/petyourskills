@@ -35,6 +35,7 @@ interface AppContextType {
     columnId?: "TODO" | "IN_PROGRESS" | "REVIEW" | "DONE";
     xpReward?: number;
     estimatedMinutes?: number;
+    assignee?: { id: string; name: string } | null;
   }) => void;
   updateTask: (task: Partial<TaskItem> & { id: string }) => void;
   deleteTask: (taskId: string) => void;
@@ -260,47 +261,7 @@ export function AppProvider({
       sortOrder: tasks.length + 1,
     };
 
-    // If multi-task project, create starter subtasks on this project board
-    const starterTasks: TaskItem[] =
-      planningEngine === "MULTI_TASK"
-        ? [
-            {
-              id: `task-${Date.now()}-1`,
-              domainId: targetDomainId!,
-              boardId: tempId,
-              title: `Milestone 1: Project Scope & Setup`,
-              columnId: "TODO",
-              isCompleted: false,
-              xpReward: 30,
-              estimatedMinutes: 25,
-              sortOrder: 1,
-            },
-            {
-              id: `task-${Date.now()}-2`,
-              domainId: targetDomainId!,
-              boardId: tempId,
-              title: `Milestone 2: Core Implementation Sprint`,
-              columnId: "IN_PROGRESS",
-              isCompleted: false,
-              xpReward: 50,
-              estimatedMinutes: 45,
-              sortOrder: 2,
-            },
-            {
-              id: `task-${Date.now()}-3`,
-              domainId: targetDomainId!,
-              boardId: tempId,
-              title: `Milestone 3: Quality Review & Testing`,
-              columnId: "REVIEW",
-              isCompleted: false,
-              xpReward: 35,
-              estimatedMinutes: 20,
-              sortOrder: 3,
-            },
-          ]
-        : [];
-
-    setTasks((prev) => [...starterTasks, newTask, ...prev]);
+    setTasks((prev) => [newTask, ...prev]);
 
     // If registered as companion skill pet, update local domain representation
     if (createCompanionPet || planningEngine) {
@@ -359,6 +320,7 @@ export function AppProvider({
     columnId = "TODO",
     xpReward = 30,
     estimatedMinutes = 25,
+    assignee,
   }: {
     boardId: string;
     domainId: string;
@@ -366,6 +328,7 @@ export function AppProvider({
     columnId?: "TODO" | "IN_PROGRESS" | "REVIEW" | "DONE";
     xpReward?: number;
     estimatedMinutes?: number;
+    assignee?: { id: string; name: string } | null;
   }) => {
     const tempId = `task-${Date.now()}`;
     const newTask: TaskItem = {
@@ -378,6 +341,7 @@ export function AppProvider({
       xpReward,
       estimatedMinutes: estimatedMinutes || null,
       sortOrder: tasks.length + 1,
+      assignee,
     };
 
     setTasks((prev) => [...prev, newTask]);
@@ -395,6 +359,7 @@ export function AppProvider({
             columnId,
             xpReward,
             estimatedMinutes,
+            assignee,
           })
             .then((res) => {
               if (res?.success && res.taskId) {
@@ -422,7 +387,17 @@ export function AppProvider({
         title,
         xpReward,
         estimatedMinutes,
-      }).catch(console.error);
+        assignee,
+      })
+        .then((res) => {
+          if (res?.success && res.task?.id) {
+            const realId = res.task.id;
+            setTasks((prev) =>
+              prev.map((t) => (t.id === tempId ? { ...t, id: realId } : t))
+            );
+          }
+        })
+        .catch(console.error);
     });
   };
 
@@ -457,6 +432,13 @@ export function AppProvider({
     if (updated.repeatConfig) {
       import("@/actions/tasks").then(({ updateTaskRepeatConfigAction }) => {
         updateTaskRepeatConfigAction(updated.id, updated.repeatConfig!).catch(console.error);
+      });
+    }
+
+    if (updated.assignee !== undefined) {
+      const assignee = updated.assignee ? { id: updated.assignee.id, name: updated.assignee.name } : null;
+      import("@/actions/tasks").then(({ updateTaskAssigneeAction }) => {
+        updateTaskAssigneeAction(updated.id, assignee).catch(console.error);
       });
     }
   };
@@ -515,7 +497,19 @@ export function AppProvider({
         });
         // Skip cards deleted locally whose server delete is still in flight
         const merged = fetched.filter((t) => !recentlyDeleted.has(t.id));
-        return [...kept, ...merged];
+        
+        // Merge: prefer local version if it has assignee and server doesn't,
+        // or if local was updated more recently (has assignee but server doesn't)
+        const mergedWithLocal = merged.map((serverTask) => {
+          const localTask = prev.find((t) => t.id === serverTask.id);
+          if (localTask && localTask.assignee && !serverTask.assignee) {
+            // Preserve local assignee if server doesn't have it yet
+            return { ...serverTask, assignee: localTask.assignee };
+          }
+          return serverTask;
+        });
+        
+        return [...kept, ...mergedWithLocal];
       });
     } catch (error) {
       console.error("Project sync failed:", error);

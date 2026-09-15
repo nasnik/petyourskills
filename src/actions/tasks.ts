@@ -212,6 +212,7 @@ export async function createTaskAction(data: {
   planningEngine?: "DAILY_ROUTINE" | "MULTI_TASK" | "CUSTOM_SCHEDULE" | "SPECIFIC_DATE";
   repeatConfig?: SkillRepeatConfig | null;
   createCompanionPet?: boolean;
+  assignee?: { id: string; name: string } | null;
 }) {
   try {
     let resolvedDomainId = data.domainId;
@@ -463,6 +464,23 @@ export async function updateTaskColumnAction(taskId: string, columnId: string) {
     return { success: true, task: updated };
   } catch (error) {
     console.error("Error updating task column in Neon:", error);
+    return { success: false, error: String(error) };
+  }
+}
+
+export async function updateTaskAssigneeAction(taskId: string, assignee: { id: string; name: string } | null) {
+  try {
+    const updated = await prisma.task.update({
+      where: { id: taskId },
+      data: {
+        assignee: assignee as any,
+      },
+    });
+
+    revalidatePath("/dashboard");
+    return { success: true, task: updated };
+  } catch (error) {
+    console.error("Error updating task assignee in Neon:", error);
     return { success: false, error: String(error) };
   }
 }
