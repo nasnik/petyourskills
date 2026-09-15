@@ -28,8 +28,8 @@ export default function GrowthPage() {
   const kpiMetrics = useMemo(() => {
     const filtered = filterSessionsByTimeframe(focusSessions, timeframe);
     const totalSeconds = calculateTotalFocusTime(filtered);
-    const completedTasks = calculateCompletedTasks(filtered, tasks);
-    const completionRate = calculateTaskCompletionRate(filtered, tasks);
+    const completedTasks = calculateCompletedTasks(filtered, tasks, timeframe);
+    const completionRate = calculateTaskCompletionRate(filtered, tasks, timeframe);
     const totalXP = calculateTotalXP(filtered);
     const streak = calculateStreak(focusSessions, tasks);
 

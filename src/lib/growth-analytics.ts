@@ -114,7 +114,15 @@ export function formatDuration(seconds: number): string {
   return `${hours}h ${mins}m`;
 }
 
-export function calculateCompletedTasks(sessions: FocusSessionItem[], tasks: TaskItem[]): number {
+export function calculateCompletedTasks(sessions: FocusSessionItem[], tasks: TaskItem[], timeframe?: Timeframe): number {
+  // If timeframe provided, filter tasks by doneAt date
+  if (timeframe) {
+    const { start } = getTimeframeRange(timeframe);
+    const startMs = start.getTime();
+    const relevantTasks = tasks.filter(t => t.isCompleted && t.doneAt && new Date(t.doneAt).getTime() >= startMs);
+    return relevantTasks.length;
+  }
+  // Fallback: only count tasks with focus sessions (for backward compatibility)
   const taskIds = new Set(sessions.map(s => s.taskId).filter(Boolean));
   return Array.from(taskIds).filter(id => {
     const task = tasks.find(t => t.id === id);
@@ -122,7 +130,17 @@ export function calculateCompletedTasks(sessions: FocusSessionItem[], tasks: Tas
   }).length;
 }
 
-export function calculateTaskCompletionRate(sessions: FocusSessionItem[], tasks: TaskItem[]): number {
+export function calculateTaskCompletionRate(sessions: FocusSessionItem[], tasks: TaskItem[], timeframe?: Timeframe): number {
+  // If timeframe provided, use all tasks in timeframe
+  if (timeframe) {
+    const { start } = getTimeframeRange(timeframe);
+    const startMs = start.getTime();
+    const relevantTasks = tasks.filter(t => t.doneAt && new Date(t.doneAt).getTime() >= startMs);
+    if (relevantTasks.length === 0) return 0;
+    const completed = relevantTasks.filter(t => t.isCompleted).length;
+    return Math.round((completed / relevantTasks.length) * 100);
+  }
+  // Fallback: only count tasks with focus sessions
   const taskIds = new Set(sessions.map(s => s.taskId).filter(Boolean));
   const relevantTasks = Array.from(taskIds).map(id => tasks.find(t => t.id === id)).filter(Boolean);
   if (relevantTasks.length === 0) return 0;
@@ -188,6 +206,8 @@ export function getDomainFocusData(
 }> {
   const filtered = filterSessionsByTimeframe(sessions, timeframe);
   const taskMap = new Map(tasks.map(t => [t.id, t]));
+  const { start } = getTimeframeRange(timeframe);
+  const startMs = start.getTime();
   
   const domainStats = new Map<string, {
     hours: number;
@@ -207,6 +227,10 @@ export function getDomainFocusData(
     existing.yieldXp += s.verifiedXp;
     domainStats.set(domainId, existing);
   });
+  
+  // Also include domains that have completed tasks but no focus sessions
+  const completedTasksInPeriod = tasks.filter(t => t.isCompleted && t.doneAt && new Date(t.doneAt).getTime() >= startMs);
+  const domainsWithCompletedTasks = new Set(completedTasksInPeriod.map(t => t.domainId));
   
   return Array.from(domainStats.entries())
     .map(([domainId, stats]) => {
@@ -229,6 +253,28 @@ export function getDomainFocusData(
         yieldXp: stats.yieldXp,
       };
     })
+    // Also add domains that have completed tasks but no focus sessions
+    .concat(
+      Array.from(domainsWithCompletedTasks)
+        .filter(domainId => !domainStats.has(domainId))
+        .map(domainId => {
+          const domain = domains.find(d => d.id === domainId);
+          const domainTasks = tasks.filter(t => t.domainId === domainId);
+          const completedInPeriod = completedTasksInPeriod.filter(t => t.domainId === domainId).length;
+          
+          return {
+            domainId,
+            domainName: domain?.name || "Unknown",
+            species: domain?.avatarSpecies || "Vitality Wolf",
+            color: domain?.accentColor || "#10B981",
+            hours: 0,
+            tasksDone: completedInPeriod,
+            tasksTotal: domainTasks.length,
+            percentage: domainTasks.length > 0 ? Math.round((completedInPeriod / domainTasks.length) * 100) : 0,
+            yieldXp: 0,
+          };
+        })
+    )
     .filter(d => d.hours > 0 || d.tasksDone > 0)
     .sort((a, b) => b.hours - a.hours);
 }
