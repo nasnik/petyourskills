@@ -54,6 +54,15 @@ function inRange(dateStr: string, rangeStart: Date, rangeEnd: Date): boolean {
   return d >= rangeStart && d <= rangeEnd;
 }
 
+/** Check if a recurring task occurrence is completed on a specific date */
+function isOccurrenceCompleted(task: TaskItem, dateStr: string): boolean {
+  if (!task.isCompleted) return false;
+  if (!task.doneAt) return false;
+  // Check if the doneAt date matches this occurrence's date
+  const doneDate = task.doneAt.split('T')[0]; // YYYY-MM-DD
+  return doneDate === dateStr;
+}
+
 /**
  * Expand a single task into one CalendarEvent per date it should appear on,
  * within the given [rangeStart, rangeEnd] window.
@@ -71,7 +80,7 @@ function expandTask(
     domainId: task.domainId,
     accentColor: domain.accentColor,
     xpReward: task.xpReward,
-    isCompleted: task.isCompleted,
+    isCompleted: false, // Will be set per occurrence
     estimatedMinutes: task.estimatedMinutes,
     time: cfg?.time as string | undefined,
   };
@@ -82,7 +91,7 @@ function expandTask(
   if (!cfg || !cfg.frequency) {
     const today = toDateStr(new Date());
     if (inRange(today, rangeStart, rangeEnd) && !excluded.has(today)) {
-      return [{ ...base, date: today }];
+      return [{ ...base, date: today, isCompleted: task.isCompleted }];
     }
     return [];
   }
@@ -92,7 +101,11 @@ function expandTask(
 
   switch (cfg.frequency) {
     case "daily": {
-      rawEvents = allDates.map((date) => ({ ...base, date }));
+      rawEvents = allDates.map((date) => ({
+        ...base,
+        date,
+        isCompleted: isOccurrenceCompleted(task, date),
+      }));
       break;
     }
 
@@ -102,7 +115,11 @@ function expandTask(
           const dow = parseDate(d).getDay();
           return dow >= 1 && dow <= 5; // Mon–Fri
         })
-        .map((date) => ({ ...base, date }));
+        .map((date) => ({
+          ...base,
+          date,
+          isCompleted: isOccurrenceCompleted(task, date),
+        }));
       break;
     }
 
@@ -112,7 +129,11 @@ function expandTask(
           const dow = parseDate(d).getDay();
           return dow === 0 || dow === 6; // Sat–Sun
         })
-        .map((date) => ({ ...base, date }));
+        .map((date) => ({
+          ...base,
+          date,
+          isCompleted: isOccurrenceCompleted(task, date),
+        }));
       break;
     }
 
@@ -132,14 +153,18 @@ function expandTask(
             allowedDows.includes(parsed.getDay())
           );
         })
-        .map((date) => ({ ...base, date }));
+        .map((date) => ({
+          ...base,
+          date,
+          isCompleted: isOccurrenceCompleted(task, date),
+        }));
       break;
     }
 
     case "specific_date": {
       const specificDate = cfg.specificDate as string | undefined;
       if (specificDate && inRange(specificDate, rangeStart, rangeEnd)) {
-        rawEvents = [{ ...base, date: specificDate }];
+        rawEvents = [{ ...base, date: specificDate, isCompleted: task.isCompleted }];
       }
       break;
     }
@@ -156,6 +181,7 @@ function expandTask(
         rawEvents = dateRange(effectiveStart, effectiveEnd).map((date) => ({
           ...base,
           date,
+          isCompleted: isOccurrenceCompleted(task, date),
         }));
       }
       break;
