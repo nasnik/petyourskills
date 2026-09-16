@@ -54,13 +54,25 @@ function inRange(dateStr: string, rangeStart: Date, rangeEnd: Date): boolean {
   return d >= rangeStart && d <= rangeEnd;
 }
 
-/** Check if a recurring task occurrence is completed on a specific date */
+/** Check if a recurring task or project occurrence is completed on a specific date */
 function isOccurrenceCompleted(task: TaskItem, dateStr: string): boolean {
   if (!task.isCompleted) return false;
+
+  const todayStr = toDateStr(new Date());
+
+  // Never mark future dates completed ahead of time
+  if (dateStr > todayStr) return false;
+
+  // If the task/project is marked completed, it indicates work completed today
+  if (dateStr === todayStr) return true;
+
   if (!task.doneAt) return false;
-  // Check if the doneAt date matches this occurrence's date
-  const doneDate = task.doneAt.split('T')[0]; // YYYY-MM-DD
-  return doneDate === dateStr;
+  // Calendar events use LOCAL dates (YYYY-MM-DD). 
+  // Convert doneAt (UTC) to LOCAL date for comparison.
+  const doneDate = new Date(task.doneAt);
+  if (isNaN(doneDate.getTime())) return false;
+  const localDoneDate = `${doneDate.getFullYear()}-${String(doneDate.getMonth() + 1).padStart(2, '0')}-${String(doneDate.getDate()).padStart(2, '0')}`;
+  return localDoneDate === dateStr;
 }
 
 /**
@@ -73,6 +85,16 @@ function expandTask(
   rangeStart: Date,
   rangeEnd: Date
 ): CalendarEvent[] {
+  // If this task belongs to a Kanban board (boardId is set) and has no explicit schedule,
+  // it lives on the project board, NOT on the calendar schedule.
+  if (
+    task.boardId &&
+    (!task.repeatConfig ||
+      (!task.repeatConfig.frequency && !task.repeatConfig.specificDate))
+  ) {
+    return [];
+  }
+
   const cfg: SkillRepeatConfig | null = task.repeatConfig ?? null;
   const base: Omit<CalendarEvent, "date"> = {
     taskId: task.id,
@@ -89,6 +111,7 @@ function expandTask(
 
   // No repeat config → one-off on today (if today is in range and not excluded)
   if (!cfg || !cfg.frequency) {
+    if (task.boardId) return [];
     const today = toDateStr(new Date());
     if (inRange(today, rangeStart, rangeEnd) && !excluded.has(today)) {
       return [{ ...base, date: today, isCompleted: task.isCompleted }];

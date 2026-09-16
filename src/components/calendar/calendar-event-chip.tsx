@@ -8,27 +8,46 @@ import { CheckCircle2, Clock } from "lucide-react";
 interface CalendarEventChipProps {
   event: CalendarEvent;
   onClick: (event: CalendarEvent) => void;
+  onToggleComplete?: (taskId: string) => void;
   compact?: boolean; // month view = smaller chip
 }
 
 export function CalendarEventChip({
   event,
   onClick,
+  onToggleComplete,
   compact = false,
 }: CalendarEventChipProps) {
   if (compact) {
     // Month view: just a colored dot + truncated title
     return (
-      <button
-        type="button"
+      <div
         onClick={() => onClick(event)}
         title={event.title}
         className="group w-full flex items-center gap-1.5 px-1.5 py-0.5 rounded hover:bg-white/5 transition-colors cursor-pointer text-left"
       >
-        <span
-          className="shrink-0 w-1.5 h-1.5 rounded-full"
-          style={{ backgroundColor: event.accentColor }}
-        />
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleComplete?.(event.taskId);
+          }}
+          className="shrink-0 p-0.5 rounded hover:scale-125 transition-transform"
+          title={event.isCompleted ? "Mark incomplete" : "Mark complete"}
+        >
+          {event.isCompleted ? (
+            <CheckCircle2
+              size={11}
+              className="shrink-0"
+              style={{ color: event.accentColor }}
+            />
+          ) : (
+            <span
+              className="block shrink-0 w-1.5 h-1.5 rounded-full border border-current"
+              style={{ backgroundColor: event.accentColor, borderColor: event.accentColor }}
+            />
+          )}
+        </button>
         <span
           className={cn(
             "text-[10px] font-mono truncate leading-tight",
@@ -37,14 +56,13 @@ export function CalendarEventChip({
         >
           {event.title}
         </span>
-      </button>
+      </div>
     );
   }
 
   // Week view: full chip with XP badge
   return (
-    <button
-      type="button"
+    <div
       onClick={() => onClick(event)}
       className={cn(
         "group w-full flex items-center gap-2 px-2 py-1.5 rounded border transition-all cursor-pointer text-left",
@@ -57,19 +75,29 @@ export function CalendarEventChip({
         borderLeftWidth: "2px",
       }}
     >
-      {/* Completion icon */}
-      {event.isCompleted ? (
-        <CheckCircle2
-          size={12}
-          className="shrink-0"
-          style={{ color: event.accentColor }}
-        />
-      ) : (
-        <span
-          className="shrink-0 w-2 h-2 rounded-full border border-current opacity-50 group-hover:opacity-80"
-          style={{ borderColor: event.accentColor }}
-        />
-      )}
+      {/* Interactive completion toggle */}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggleComplete?.(event.taskId);
+        }}
+        className="shrink-0 p-0.5 rounded hover:bg-white/10 transition-all cursor-pointer"
+        title={event.isCompleted ? "Mark incomplete" : "Mark complete"}
+      >
+        {event.isCompleted ? (
+          <CheckCircle2
+            size={13}
+            className="shrink-0"
+            style={{ color: event.accentColor }}
+          />
+        ) : (
+          <span
+            className="block shrink-0 w-2.5 h-2.5 rounded-full border border-current opacity-60 group-hover:opacity-100 hover:scale-110 transition-all"
+            style={{ borderColor: event.accentColor }}
+          />
+        )}
+      </button>
 
       {/* Title */}
       <span
@@ -101,6 +129,6 @@ export function CalendarEventChip({
       >
         +{event.xpReward}
       </span>
-    </button>
+    </div>
   );
 }

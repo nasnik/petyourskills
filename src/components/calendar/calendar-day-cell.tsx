@@ -1,6 +1,4 @@
-"use client";
-
-import React from "react";
+import React, { useState } from "react";
 import { CalendarEvent } from "@/lib/calendar/expand-events";
 import { CalendarEventChip } from "./calendar-event-chip";
 import { cn } from "@/lib/utils";
@@ -15,6 +13,7 @@ interface CalendarDayCellProps {
   isCurrentMonth: boolean; // false for padding days in month view
   view: "week" | "month";
   onEventClick: (event: CalendarEvent) => void;
+  onToggleComplete?: (taskId: string) => void;
 }
 
 export function CalendarDayCell({
@@ -24,13 +23,15 @@ export function CalendarDayCell({
   isCurrentMonth,
   view,
   onEventClick,
+  onToggleComplete,
 }: CalendarDayCellProps) {
+  const [showAll, setShowAll] = useState(false);
   const date = new Date(dateStr + "T00:00:00");
   const dayNum = date.getDate();
   const dayName = date.toLocaleDateString("en-US", { weekday: "short" });
 
   const maxVisible = view === "week" ? WEEK_MAX_VISIBLE : MONTH_MAX_VISIBLE;
-  const visibleEvents = events.slice(0, maxVisible);
+  const visibleEvents = showAll ? events : events.slice(0, maxVisible);
   const overflow = events.length - maxVisible;
 
   const xpTotal = events
@@ -82,7 +83,7 @@ export function CalendarDayCell({
         </div>
 
         {/* Events */}
-        <div className="flex-1 p-2 space-y-1 overflow-hidden">
+        <div className="flex-1 p-2 space-y-1 overflow-y-auto max-h-[280px] scrollbar-thin">
           {events.length === 0 && (
             <div className="h-full flex items-center justify-center">
               <span className="text-[10px] font-mono text-outline/40">
@@ -96,13 +97,18 @@ export function CalendarDayCell({
               key={`${ev.taskId}-${ev.date}`}
               event={ev}
               onClick={onEventClick}
+              onToggleComplete={onToggleComplete}
             />
           ))}
 
           {overflow > 0 && (
-            <div className="text-[10px] font-mono text-outline px-2 py-1">
-              +{overflow} more
-            </div>
+            <button
+              type="button"
+              onClick={() => setShowAll((prev) => !prev)}
+              className="w-full text-left text-[10px] font-mono text-secondary hover:text-white px-2 py-1 rounded bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
+            >
+              {showAll ? "Show less" : `+${overflow} more`}
+            </button>
           )}
         </div>
       </div>
@@ -143,19 +149,24 @@ export function CalendarDayCell({
       </div>
 
       {/* Compact event list */}
-      <div className="space-y-0.5">
+      <div className="space-y-0.5 overflow-y-auto max-h-[140px] scrollbar-none">
         {visibleEvents.map((ev) => (
           <CalendarEventChip
             key={`${ev.taskId}-${ev.date}`}
             event={ev}
             onClick={onEventClick}
+            onToggleComplete={onToggleComplete}
             compact
           />
         ))}
         {overflow > 0 && (
-          <span className="text-[9px] font-mono text-outline px-1.5">
-            +{overflow} more
-          </span>
+          <button
+            type="button"
+            onClick={() => setShowAll((prev) => !prev)}
+            className="w-full text-left text-[9px] font-mono text-secondary hover:text-white px-1 py-0.5 rounded hover:bg-white/5 cursor-pointer block"
+          >
+            {showAll ? "Less" : `+${overflow} more`}
+          </button>
         )}
       </div>
     </div>

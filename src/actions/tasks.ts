@@ -149,7 +149,7 @@ export async function getDashboardDataAction() {
   }
 }
 
-export async function toggleTaskCompleteAction(taskId: string) {
+export async function toggleTaskCompleteAction(taskId: string, doneAt?: string | null) {
   try {
     const task = await prisma.task.findUnique({
       where: { id: taskId },
@@ -167,7 +167,7 @@ export async function toggleTaskCompleteAction(taskId: string) {
         data: {
           isCompleted,
           columnId: isCompleted ? "DONE" : "TODO",
-          doneAt: isCompleted ? new Date() : null,
+          doneAt: isCompleted ? (doneAt ? new Date(doneAt) : new Date()) : null,
         },
       });
 

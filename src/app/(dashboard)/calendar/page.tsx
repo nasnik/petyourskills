@@ -39,7 +39,7 @@ function getViewRange(
 }
 
 export default function CalendarPage() {
-  const { tasks, domains, openTaskInspector } = useApp();
+  const { tasks, domains, openTaskInspector, toggleTaskComplete } = useApp();
   const [view, setView] = useState<CalendarView>("week");
   const [currentDate, setCurrentDate] = useState<Date>(() => new Date());
 
@@ -193,6 +193,7 @@ export default function CalendarPage() {
           currentDate={currentDate}
           events={events}
           onEventClick={handleEventClick}
+          onToggleComplete={toggleTaskComplete}
           onNavigate={handleNavigate}
           onToday={() => setCurrentDate(new Date())}
         />

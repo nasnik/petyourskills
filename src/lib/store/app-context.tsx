@@ -163,10 +163,12 @@ export function AppProvider({
   };
 
   const toggleTaskComplete = (taskId: string) => {
+    let doneAt: string | null = null;
     setTasks((prev) =>
       prev.map((t) => {
         if (t.id === taskId) {
           const nextCompleted = !t.isCompleted;
+          doneAt = nextCompleted ? new Date().toISOString() : null;
           if (nextCompleted) {
             addXP(t.xpReward, t.domainId);
           } else {
@@ -176,7 +178,7 @@ export function AppProvider({
             ...t,
             isCompleted: nextCompleted,
             columnId: nextCompleted ? "DONE" : "TODO",
-            doneAt: nextCompleted ? new Date().toISOString() : null,
+            doneAt,
           };
         }
         return t;
@@ -185,7 +187,7 @@ export function AppProvider({
 
     // Persist to Neon DB asynchronously via Server Action
     import("@/actions/tasks").then(({ toggleTaskCompleteAction }) => {
-      toggleTaskCompleteAction(taskId).catch(console.error);
+      toggleTaskCompleteAction(taskId, doneAt).catch(console.error);
     });
   };
 

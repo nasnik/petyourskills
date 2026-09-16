@@ -13,6 +13,7 @@ interface CalendarGridProps {
   currentDate: Date; // anchor date (any day in the week/month to show)
   events: CalendarEvent[];
   onEventClick: (event: CalendarEvent) => void;
+  onToggleComplete?: (taskId: string) => void;
   onNavigate: (direction: -1 | 1) => void;
   onToday: () => void;
 }
@@ -90,6 +91,7 @@ export function CalendarGrid({
   currentDate,
   events,
   onEventClick,
+  onToggleComplete,
   onNavigate,
   onToday,
 }: CalendarGridProps) {
@@ -177,6 +179,7 @@ export function CalendarGrid({
               isCurrentMonth={isCurrentMonth}
               view={view}
               onEventClick={onEventClick}
+              onToggleComplete={onToggleComplete}
             />
           );
         })}
