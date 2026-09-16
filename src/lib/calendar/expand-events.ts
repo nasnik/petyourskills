@@ -63,16 +63,13 @@ function isOccurrenceCompleted(task: TaskItem, dateStr: string): boolean {
   // Never mark future dates completed ahead of time
   if (dateStr > todayStr) return false;
 
-  // If the task/project is marked completed, it indicates work completed today
+  // If the task/project is marked completed, it indicates work completed today only
   if (dateStr === todayStr) return true;
 
-  if (!task.doneAt) return false;
-  // Calendar events use LOCAL dates (YYYY-MM-DD). 
-  // Convert doneAt (UTC) to LOCAL date for comparison.
-  const doneDate = new Date(task.doneAt);
-  if (isNaN(doneDate.getTime())) return false;
-  const localDoneDate = `${doneDate.getFullYear()}-${String(doneDate.getMonth() + 1).padStart(2, '0')}-${String(doneDate.getDate()).padStart(2, '0')}`;
-  return localDoneDate === dateStr;
+  // For past dates — do NOT retroactively mark them completed.
+  // Marking a task complete signals "I worked on this today", not "all past dates are done".
+  // This applies especially to MULTI-TASK / ongoing project spans.
+  return false;
 }
 
 /**
