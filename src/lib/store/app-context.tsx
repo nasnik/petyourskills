@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useRef, useMemo } from "react";
-import { LifeDomainItem, TaskItem, UserProfile, FocusSessionItem } from "@/types";
+import { LifeDomainItem, TaskItem, UserProfile, FocusSessionItem, CommentItem } from "@/types";
 import { INITIAL_DOMAINS, INITIAL_TASKS, INITIAL_USER_PROFILE } from "@/lib/mock-data";
 import { calculateUserRank } from "@/lib/gamification/xp-engine";
 
@@ -12,6 +12,7 @@ export interface AddSkillOrTaskParams {
   domainColor?: string;
   avatarSpecies?: string;
   title: string;
+  description?: string | null;
   estimatedMinutes?: number | null;
   xpReward?: number;
   repeatConfig?: TaskItem["repeatConfig"];
@@ -32,6 +33,7 @@ interface AppContextType {
     boardId: string;
     domainId: string;
     title: string;
+    description?: string | null;
     columnId?: "TODO" | "IN_PROGRESS" | "REVIEW" | "DONE";
     xpReward?: number;
     estimatedMinutes?: number;
@@ -48,6 +50,12 @@ interface AppContextType {
   // Active Multi-Task Project Kanban State
   activeProjectId: string | null;
   setActiveProjectId: (id: string | null) => void;
+
+  // Task description & comments
+  updateTaskDescription: (taskId: string, description: string | null) => void;
+  comments: Map<string, CommentItem[]>;
+  loadTaskComments: (taskId: string) => Promise<void>;
+  addComment: (taskId: string, body: string) => void;
 
   // Focus Timer Overlay State
   isFocusModalOpen: boolean;
@@ -99,6 +107,9 @@ export function AppProvider({
 
   // Multi-Task Project Kanban Workspace state
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
+
+  // Task descriptions & comments state
+  const [comments, setComments] = useState<Map<string, CommentItem[]>>(new Map());
 
   const [isFocusModalOpen, setIsFocusModalOpen] = useState(false);
   const [focusTargetTask, setFocusTargetTask] = useState<TaskItem | null>(null);
@@ -198,6 +209,7 @@ export function AppProvider({
     domainColor,
     avatarSpecies,
     title,
+    description,
     estimatedMinutes,
     xpReward = 25,
     repeatConfig,
@@ -254,6 +266,7 @@ export function AppProvider({
       id: tempId,
       domainId: targetDomainId!,
       title,
+      description,
       columnId: "TODO",
       isCompleted: false,
       xpReward,
@@ -306,6 +319,7 @@ export function AppProvider({
         domainColor,
         avatarSpecies,
         title,
+        description: description || null,
         estimatedMinutes: estimatedMinutes ?? null,
         xpReward,
         planningEngine,
@@ -319,6 +333,7 @@ export function AppProvider({
     boardId,
     domainId,
     title,
+    description,
     columnId = "TODO",
     xpReward = 30,
     estimatedMinutes = 25,
@@ -327,6 +342,7 @@ export function AppProvider({
     boardId: string;
     domainId: string;
     title: string;
+    description?: string | null;
     columnId?: "TODO" | "IN_PROGRESS" | "REVIEW" | "DONE";
     xpReward?: number;
     estimatedMinutes?: number;
@@ -338,6 +354,7 @@ export function AppProvider({
       domainId,
       boardId,
       title,
+      description,
       columnId,
       isCompleted: columnId === "DONE",
       xpReward,
@@ -358,6 +375,7 @@ export function AppProvider({
           addSharedProjectTaskAction({
             projectId: boardId,
             title,
+            description,
             columnId,
             xpReward,
             estimatedMinutes,
@@ -387,6 +405,7 @@ export function AppProvider({
         domainId,
         boardId,
         title,
+        description,
         xpReward,
         estimatedMinutes,
         assignee,
@@ -518,6 +537,66 @@ export function AppProvider({
     }
   };
 
+  const updateTaskDescription = (taskId: string, description: string | null) => {
+    setTasks((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, description } : t))
+    );
+    import("@/actions/tasks").then(({ updateTaskDescriptionAction }) => {
+      updateTaskDescriptionAction(taskId, description).catch(console.error);
+    });
+  };
+
+  const loadTaskComments = async (taskId: string) => {
+    // Check cache first
+    if (comments.has(taskId)) return;
+    try {
+      const mod = await import("@/actions/tasks");
+      const res = await mod.getTaskCommentsAction(taskId);
+      if (res.success && res.comments) {
+        setComments((prev) => new Map(prev).set(taskId, res.comments as CommentItem[]));
+      }
+    } catch (err) {
+      console.error("Failed to load task comments:", err);
+    }
+  };
+
+  const addComment = (taskId: string, body: string) => {
+    const trimmed = body.trim();
+    if (!trimmed) return;
+
+    // Optimistic comment
+    const optimisticComment: CommentItem = {
+      id: `cmt-${Date.now()}`,
+      taskId,
+      userId: user.isAnonymous ? "guest" : user.id,
+      userName: user.isAnonymous ? "Guest Collaborator" : user.callSign,
+      body: trimmed,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    setComments((prev) => {
+      const existing = prev.get(taskId) || [];
+      return new Map(prev).set(taskId, [...existing, optimisticComment]);
+    });
+
+    // Persist to DB
+    import("@/actions/tasks").then(({ addTaskCommentAction }) => {
+      addTaskCommentAction(taskId, trimmed).then((res) => {
+        if (res.success && res.comment) {
+          setComments((prev2) => {
+            const existing = prev2.get(taskId) || [];
+            // Replace optimistic comment with real one (match by timestamp proximity)
+            const real = res.comment as { id: string; taskId: string; userId: string; createdAt: string };
+            const updated = existing.map((c) =>
+              c.id === optimisticComment.id ? { ...c, id: real.id } : c
+            );
+            return new Map(prev2).set(taskId, updated);
+          });
+        }
+      }).catch(console.error);
+    });
+  };
+
   const openFocusModal = (task?: TaskItem | null) => {
     setFocusTargetTask(task || null);
     setIsFocusModalOpen(true);
@@ -583,6 +662,10 @@ export function AppProvider({
         refreshProjectTasks,
         activeProjectId,
         setActiveProjectId,
+        updateTaskDescription,
+        comments,
+        loadTaskComments,
+        addComment,
         isFocusModalOpen,
         focusTargetTask,
         focusSessions,

@@ -50,6 +50,7 @@ export interface TaskItem {
   domainId: string;
   boardId?: string | null;
   title: string;
+  description?: string | null;
   columnId: "TODO" | "IN_PROGRESS" | "REVIEW" | "DONE";
   isCompleted: boolean;
   doneAt?: string | null;
@@ -60,6 +61,17 @@ export interface TaskItem {
   domain?: LifeDomainItem;
   planningEngineType?: "DAILY_ROUTINE" | "MULTI_TASK" | "CUSTOM_SCHEDULE" | "SPECIFIC_DATE";
   assignee?: { id: string; name: string; avatar?: string } | null;
+}
+
+export interface CommentItem {
+  id: string;
+  taskId: string;
+  userId: string;
+  userName?: string;
+  userAvatar?: string;
+  body: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface FocusSessionItem {

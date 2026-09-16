@@ -22,6 +22,7 @@ import {
   KeyRound,
   Share2,
   User,
+  MessageSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ShareModal } from "./share-modal";
@@ -68,11 +69,14 @@ export function ProjectKanbanBoard({ projectId }: ProjectKanbanBoardProps) {
     setActiveProjectId,
     openTaskInspector,
     refreshProjectTasks,
+    comments,
+    loadTaskComments,
   } = useApp();
 
   const [mounted, setMounted] = useState(false);
   const [inlineAddingCol, setInlineAddingCol] = useState<string | null>(null);
   const [newCardTitle, setNewCardTitle] = useState("");
+  const [newCardDescription, setNewCardDescription] = useState("");
   const [newCardAssignee, setNewCardAssignee] = useState("");
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
@@ -206,6 +210,7 @@ export function ProjectKanbanBoard({ projectId }: ProjectKanbanBoardProps) {
       boardId: projectId,
       domainId: domain?.id || "default",
       title: newCardTitle.trim(),
+      description: newCardDescription.trim() || null,
       columnId,
       xpReward: 30,
       estimatedMinutes: 25,
@@ -213,6 +218,7 @@ export function ProjectKanbanBoard({ projectId }: ProjectKanbanBoardProps) {
     });
 
     setNewCardTitle("");
+    setNewCardDescription("");
     setNewCardAssignee("");
     setInlineAddingCol(null);
   };
@@ -420,6 +426,16 @@ export function ProjectKanbanBoard({ projectId }: ProjectKanbanBoardProps) {
                       }}
                       className="w-full bg-obsidian-deep border border-white/15 rounded px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-wellness-emerald"
                     />
+                    <textarea
+                      value={newCardDescription}
+                      onChange={(e) => setNewCardDescription(e.target.value)}
+                      placeholder="Description (optional)..."
+                      rows={2}
+                      onKeyDown={(e) => {
+                        if (e.key === "Escape") setInlineAddingCol(null);
+                      }}
+                      className="w-full bg-obsidian-deep border border-white/15 rounded px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-wellness-emerald resize-none"
+                    />
                     <input
                       type="text"
                       value={newCardAssignee}
@@ -509,6 +525,13 @@ export function ProjectKanbanBoard({ projectId }: ProjectKanbanBoardProps) {
                                 </button>
                               </div>
 
+                              {/* Card Description preview */}
+                              {task.description && (
+                                <p className="text-[10px] text-outline line-clamp-2 leading-relaxed">
+                                  {task.description}
+                                </p>
+                              )}
+
                               {/* Assignee */}
                               {task.assignee && (
                                 <div className="flex items-center gap-1.5 text-[10px] font-mono">
@@ -535,6 +558,27 @@ export function ProjectKanbanBoard({ projectId }: ProjectKanbanBoardProps) {
                                     <Zap size={10} className="fill-wellness-emerald" />
                                     <span>+{task.xpReward} XP</span>
                                   </span>
+
+                                  {/* Comment count badge */}
+                                  {(() => {
+                                    const commentCount = (comments.get(task.id) || []).length;
+                                    if (commentCount > 0) {
+                                      return (
+                                        <span
+                                          className="flex items-center gap-0.5 px-1.5 py-0.2 rounded bg-blue-500/10 border border-blue-500/30 text-blue-300 cursor-pointer hover:bg-blue-500/20"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            openTaskInspector(task);
+                                            loadTaskComments(task.id);
+                                          }}
+                                        >
+                                          <MessageSquare size={9} />
+                                          <span>{commentCount}</span>
+                                        </span>
+                                      );
+                                    }
+                                    return null;
+                                  })()}
 
                                   <span className="opacity-0 group-hover:opacity-100 text-outline hover:text-white transition-opacity">
                                     <Edit3 size={11} />

@@ -311,6 +311,7 @@ export async function joinProjectWithPasskeyAction(
 export async function addSharedProjectTaskAction(data: {
   projectId: string;
   title: string;
+  description?: string | null;
   columnId?: "TODO" | "IN_PROGRESS" | "REVIEW" | "DONE";
   xpReward?: number;
   estimatedMinutes?: number | null;
@@ -393,6 +394,7 @@ export async function addSharedProjectTaskAction(data: {
         domainId,
         boardId: data.projectId,
         title: title.slice(0, 300),
+        description: data.description || null,
         columnId: data.columnId ?? "TODO",
         isCompleted: (data.columnId ?? "TODO") === "DONE",
         doneAt: (data.columnId ?? "TODO") === "DONE" ? new Date() : null,

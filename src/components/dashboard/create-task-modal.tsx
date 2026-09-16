@@ -196,6 +196,7 @@ export function CreateTaskModal() {
 
   // Step 3: Skill Title
   const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
 
   // Step 4: Skill Type (4 options from onboarding)
   const [skillType, setSkillType] = useState<
@@ -327,6 +328,7 @@ export function CreateTaskModal() {
       domainColor: activeColor,
       avatarSpecies: selectedAvatarObj.name,
       title: title.trim(),
+      description: description || null,
       estimatedMinutes,
       xpReward,
       planningEngine: skillType,
@@ -336,6 +338,7 @@ export function CreateTaskModal() {
 
     // Reset title and close
     setTitle("");
+    setDescription("");
     closeCreateTaskModal();
   };
 
@@ -573,6 +576,15 @@ export function CreateTaskModal() {
               placeholder="e.g. 5km Morning Interval Run or Frontend Architecture Study"
               className="w-full bg-obsidian-deep border border-surface-bright rounded-xl px-4 py-3 text-sm font-mono text-white placeholder:text-outline/40 focus:outline-none focus:border-wellness-emerald transition-colors"
               required
+            />
+
+            {/* Optional Description */}
+            <textarea
+              value={description || ""}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Describe this quest or project milestone... (optional)"
+              rows={2}
+              className="mt-2 w-full bg-obsidian-deep border border-white/10 rounded-xl px-4 py-2.5 text-xs font-mono text-white placeholder:text-outline/40 focus:outline-none focus:border-wellness-emerald transition-colors resize-none"
             />
 
             {/* Quick Suggestions Chips */}

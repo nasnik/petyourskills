@@ -21,6 +21,7 @@ model User {
   focusSessions FocusSession[]
   ownedBoards   KanbanBoard[]  @relation("BoardOwner")
   memberships   BoardMember[]
+  taskComments  TaskComment[]
 
   @@map("users")
 }
@@ -103,6 +104,7 @@ model Task {
   /// design, so cards can attach to any project identity.
   boardId          String?        @map("board_id")
   title            String
+  description      String?        @map("description")
   columnId         String         @default("TODO") @map("column_id") // TODO, IN_PROGRESS, REVIEW, DONE
   isCompleted      Boolean        @default(false) @map("is_completed")
   doneAt           DateTime?      @map("done_at")
@@ -116,8 +118,23 @@ model Task {
 
   domain           LifeDomain     @relation(fields: [domainId], references: [id], onDelete: Cascade)
   focusSessions    FocusSession[]
+  comments         TaskComment[]
 
   @@map("tasks")
+}
+
+model TaskComment {
+  id        String   @id @default(uuid())
+  taskId    String   @map("task_id")
+  userId    String   @map("user_id")
+  body      String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  task    Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("task_comments")
 }
 
 model FocusSession {

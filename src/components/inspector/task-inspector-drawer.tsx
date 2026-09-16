@@ -14,6 +14,8 @@ import {
   Trash2,
   Zap,
   User,
+  Edit3,
+  MessageSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatFriendlyDate } from "@/components/shared/skill-schedule-config";
@@ -26,12 +28,19 @@ export function TaskInspectorDrawer() {
     deleteTask,
     toggleTaskComplete,
     domains,
+    updateTaskDescription,
+    loadTaskComments,
+    addComment,
+    comments,
   } = useApp();
 
   const [title, setTitle] = useState("");
   const [xpReward, setXpReward] = useState(25);
   const [estimatedMinutes, setEstimatedMinutes] = useState<number>(30);
   const [assignee, setAssignee] = useState("");
+  const [description, setDescription] = useState("");
+  const [commentText, setCommentText] = useState("");
+  const [isEditingDescription, setIsEditingDescription] = useState(false);
 
   useEffect(() => {
     if (inspectingTask) {
@@ -39,8 +48,10 @@ export function TaskInspectorDrawer() {
       setXpReward(inspectingTask.xpReward || 25);
       setEstimatedMinutes(inspectingTask.estimatedMinutes || 30);
       setAssignee(inspectingTask.assignee?.name || "");
+      setDescription(inspectingTask.description || "");
+      loadTaskComments(inspectingTask.id);
     }
-  }, [inspectingTask]);
+  }, [inspectingTask, loadTaskComments]);
 
   if (!inspectingTask) return null;
 
@@ -187,6 +198,47 @@ export function TaskInspectorDrawer() {
               />
             </div>
 
+            {/* Task Description */}
+            <div>
+              <label className="block text-xs font-mono uppercase text-outline mb-1.5 flex items-center gap-1.5">
+                <Edit3 size={12} />
+                Description
+              </label>
+              {isEditingDescription ? (
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  onBlur={() => {
+                    setIsEditingDescription(false);
+                    if (inspectingTask) {
+                      updateTaskDescription(inspectingTask.id, description || null);
+                    }
+                  }}
+                  placeholder="Describe this task or project milestone..."
+                  rows={3}
+                  autoFocus
+                  className="w-full bg-obsidian-deep border border-wellness-emerald/40 rounded-lg px-3 py-2 text-sm font-mono text-white focus:outline-none resize-none"
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsEditingDescription(true)}
+                  className={cn(
+                    "w-full text-left min-h-[60px] p-3 rounded-lg border transition-all cursor-pointer",
+                    inspectingTask?.description
+                      ? "bg-obsidian-deep border-white/10 hover:border-white/20 text-white text-sm"
+                      : "bg-charcoal-surface/30 border-dashed border-white/10 text-outline/60 hover:text-on-surface hover:border-white/20"
+                  )}
+                >
+                  {inspectingTask?.description ? (
+                    <p className="whitespace-pre-wrap">{inspectingTask.description}</p>
+                  ) : (
+                    <span className="text-xs italic">Click to add a description...</span>
+                  )}
+                </button>
+              )}
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-mono uppercase text-outline mb-1.5">
@@ -277,6 +329,75 @@ export function TaskInspectorDrawer() {
                     : "Mark Done (+XP Award)"}
                 </span>
               </button>
+            </div>
+
+            {/* Comments Section */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-mono uppercase text-outline flex items-center gap-1.5 font-semibold">
+                  <MessageSquare size={13} />
+                  Comments
+                </label>
+                <span className="text-[10px] font-mono text-outline bg-white/5 px-1.5 py-0.5 rounded">
+                  {comments.has(inspectingTask.id)
+                    ? comments.get(inspectingTask.id)?.length || 0
+                    : 0}
+                </span>
+              </div>
+
+              {/* Comment Input */}
+              <div className="flex gap-2">
+                <Input
+                  value={commentText}
+                  onChange={(e) => setCommentText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      addComment(inspectingTask.id, commentText);
+                      setCommentText("");
+                    }
+                  }}
+                  placeholder="Add a comment..."
+                  className="text-xs bg-obsidian-deep border-white/10"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    addComment(inspectingTask.id, commentText);
+                    setCommentText("");
+                  }}
+                  disabled={!commentText.trim()}
+                  className="px-3 py-2 rounded bg-wellness-emerald/20 text-wellness-emerald border border-wellness-emerald/40 text-xs font-mono font-semibold hover:bg-wellness-emerald/30 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer shrink-0"
+                >
+                  Post
+                </button>
+              </div>
+
+              {/* Comments List */}
+              <div className="space-y-2 max-h-48 overflow-y-auto scrollbar-thin pr-1">
+                {comments.has(inspectingTask.id)
+                  ? comments.get(inspectingTask.id)!.map((comment) => (
+                      <div key={comment.id} className="p-2.5 bg-obsidian-deep rounded border border-white/5">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-xs font-bold text-white">{comment.userName}</span>
+                          <span className="text-[10px] font-mono text-outline">
+                            {new Date(comment.createdAt).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </span>
+                        </div>
+                        <p className="text-xs text-on-surface leading-relaxed whitespace-pre-wrap">{comment.body}</p>
+                      </div>
+                    ))
+                  : (
+                      <div className="text-center py-4 text-outline text-xs font-mono italic">
+                        No comments yet. Be the first to share!
+                      </div>
+                    )}
+              </div>
             </div>
           </div>
         </div>

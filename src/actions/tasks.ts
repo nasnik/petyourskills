@@ -102,6 +102,7 @@ export async function getDashboardDataAction() {
       domainId: t.domainId,
       boardId: t.boardId,
       title: t.title,
+      description: t.description || null,
       columnId: t.columnId as TaskItem["columnId"],
       isCompleted: t.isCompleted,
       doneAt: t.doneAt ? t.doneAt.toISOString() : null,
@@ -207,6 +208,7 @@ export async function createTaskAction(data: {
   avatarSpecies?: string;
   boardId?: string | null;
   title: string;
+  description?: string | null;
   estimatedMinutes?: number | null;
   xpReward?: number;
   planningEngine?: "DAILY_ROUTINE" | "MULTI_TASK" | "CUSTOM_SCHEDULE" | "SPECIFIC_DATE";
@@ -304,6 +306,7 @@ export async function createTaskAction(data: {
         domainId: resolvedDomainId,
         boardId: data.boardId || null,
         title: data.title,
+        description: data.description || null,
         columnId: "TODO",
         isCompleted: false,
         xpReward: data.xpReward || 25,
@@ -481,6 +484,89 @@ export async function updateTaskAssigneeAction(taskId: string, assignee: { id: s
     return { success: true, task: updated };
   } catch (error) {
     console.error("Error updating task assignee in Neon:", error);
+    return { success: false, error: String(error) };
+  }
+}
+
+export async function updateTaskDescriptionAction(taskId: string, description: string | null) {
+  try {
+    const updated = await prisma.task.update({
+      where: { id: taskId },
+      data: { description },
+    });
+    revalidatePath("/dashboard");
+    revalidatePath("/kanban");
+    return { success: true, description: updated.description };
+  } catch (error) {
+    console.error("Error updating task description in Neon:", error);
+    return { success: false, error: String(error) };
+  }
+}
+
+export async function addTaskCommentAction(
+  taskId: string,
+  body: string
+): Promise<{ success: boolean; comment?: unknown; error?: string }> {
+  try {
+    // Resolve user from cookie
+    const uid = await getPysUidFromCookie();
+    let userId = uid;
+    if (!userId) {
+      try {
+        const { createClient } = await import("@/lib/supabase/server");
+        const supabase = await createClient();
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        if (authUser?.email) {
+          const user = await prisma.user.findUnique({ where: { email: authUser.email } });
+          if (user) userId = user.id;
+        }
+      } catch {}
+    }
+    if (!userId) {
+      return { success: false, error: "Authentication required" };
+    }
+
+    const comment = await prisma.taskComment.create({
+      data: {
+        taskId,
+        userId,
+        body: body.trim(),
+      },
+    });
+    revalidatePath("/dashboard");
+    revalidatePath("/kanban");
+    return { success: true, comment };
+  } catch (error) {
+    console.error("Error adding task comment in Neon:", error);
+    return { success: false, error: String(error) };
+  }
+}
+
+export async function getTaskCommentsAction(taskId: string): Promise<{ success: boolean; comments?: unknown[]; error?: string }> {
+  try {
+    const comments = await prisma.taskComment.findMany({
+      where: { taskId },
+      orderBy: { createdAt: "asc" },
+      include: {
+        user: {
+          select: {
+            id: true,
+            callSign: true,
+          },
+        },
+      },
+    });
+    return { success: true, comments: comments.map((c: any) => ({
+      id: c.id,
+      taskId: c.taskId,
+      userId: c.userId,
+      userName: c.user.callSign,
+      body: c.body,
+      createdAt: c.createdAt.toISOString(),
+      updatedAt: c.updatedAt.toISOString(),
+    })) };
+  } catch (error) {
+    console.error("Error fetching task comments in Neon:", error);
     return { success: false, error: String(error) };
   }
 }
