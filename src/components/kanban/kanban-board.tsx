@@ -13,10 +13,9 @@ import { Button } from "@/components/ui/button";
 import { Users, User, Plus, Share2, FolderKanban } from "lucide-react";
 import { ShareModal } from "./share-modal";
 
-const COLUMNS: { id: "TODO" | "IN_PROGRESS" | "REVIEW" | "DONE"; label: string; dotColor: string }[] = [
+const COLUMNS: { id: "TODO" | "IN_PROGRESS" | "DONE"; label: string; dotColor: string }[] = [
   { id: "TODO", label: "TO DO", dotColor: "#64748B" },
   { id: "IN_PROGRESS", label: "IN PROGRESS", dotColor: "#3B82F6" },
-  { id: "REVIEW", label: "REVIEW", dotColor: "#F59E0B" },
   { id: "DONE", label: "DONE", dotColor: "#10B981" },
 ];
 
@@ -34,7 +33,7 @@ export function KanbanBoard() {
     const { destination, draggableId } = result;
     if (!destination) return;
 
-    const newColumnId = destination.droppableId as "TODO" | "IN_PROGRESS" | "REVIEW" | "DONE";
+    const newColumnId = destination.droppableId as "TODO" | "IN_PROGRESS" | "DONE";
     const isCompleted = newColumnId === "DONE";
 
     updateTask({

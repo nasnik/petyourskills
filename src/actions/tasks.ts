@@ -325,7 +325,7 @@ export async function createTaskAction(data: {
               domainId: resolvedDomainId,
               boardId: newTask.id,
               title: `Milestone 3: Quality Review & Testing`,
-              columnId: "REVIEW",
+              columnId: "IN_PROGRESS",
               isCompleted: false,
               xpReward: 35,
               estimatedMinutes: 20,

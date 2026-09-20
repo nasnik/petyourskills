@@ -51,7 +51,7 @@ export interface TaskItem {
   boardId?: string | null;
   title: string;
   description?: string | null;
-  columnId: "TODO" | "IN_PROGRESS" | "REVIEW" | "DONE";
+  columnId: "TODO" | "IN_PROGRESS" | "DONE";
   isCompleted: boolean;
   doneAt?: string | null;
   xpReward: number;

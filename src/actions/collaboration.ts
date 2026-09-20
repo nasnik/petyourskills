@@ -372,7 +372,7 @@ export async function addSharedProjectTaskAction(data: {
   projectId: string;
   title: string;
   description?: string | null;
-  columnId?: "TODO" | "IN_PROGRESS" | "REVIEW" | "DONE";
+  columnId?: "TODO" | "IN_PROGRESS" | "DONE";
   xpReward?: number;
   estimatedMinutes?: number | null;
   assignee?: { id: string; name: string } | null;

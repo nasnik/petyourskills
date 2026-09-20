@@ -35,7 +35,7 @@ interface AppContextType {
     domainId: string;
     title: string;
     description?: string | null;
-    columnId?: "TODO" | "IN_PROGRESS" | "REVIEW" | "DONE";
+    columnId?: "TODO" | "IN_PROGRESS" | "DONE";
     xpReward?: number;
     estimatedMinutes?: number;
     assignee?: { id: string; name: string } | null;
@@ -388,7 +388,7 @@ export function AppProvider({
     domainId: string;
     title: string;
     description?: string | null;
-    columnId?: "TODO" | "IN_PROGRESS" | "REVIEW" | "DONE";
+    columnId?: "TODO" | "IN_PROGRESS" | "DONE";
     xpReward?: number;
     estimatedMinutes?: number;
     assignee?: { id: string; name: string } | null;

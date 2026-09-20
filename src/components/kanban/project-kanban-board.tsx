@@ -28,13 +28,12 @@ import { cn } from "@/lib/utils";
 import { ShareModal } from "./share-modal";
 
 const COLUMNS: {
-  id: "TODO" | "IN_PROGRESS" | "REVIEW" | "DONE";
+  id: "TODO" | "IN_PROGRESS" | "DONE";
   label: string;
   dotColor: string;
 }[] = [
   { id: "TODO", label: "TO DO", dotColor: "#64748B" },
   { id: "IN_PROGRESS", label: "IN PROGRESS", dotColor: "#3B82F6" },
-  { id: "REVIEW", label: "IN REVIEW", dotColor: "#F59E0B" },
   { id: "DONE", label: "DONE", dotColor: "#10B981" },
 ];
 
@@ -189,7 +188,6 @@ export function ProjectKanbanBoard({ projectId }: ProjectKanbanBoardProps) {
     const newColumnId = destination.droppableId as
       | "TODO"
       | "IN_PROGRESS"
-      | "REVIEW"
       | "DONE";
     const isCompleted = newColumnId === "DONE";
 
@@ -202,7 +200,7 @@ export function ProjectKanbanBoard({ projectId }: ProjectKanbanBoardProps) {
   };
 
   const handleCreateSubtask = (
-    columnId: "TODO" | "IN_PROGRESS" | "REVIEW" | "DONE"
+    columnId: "TODO" | "IN_PROGRESS" | "DONE"
   ) => {
     if (!newCardTitle.trim()) return;
 
