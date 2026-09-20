@@ -514,15 +514,11 @@ export function Sidebar() {
                     const projDomain = proj.domain;
                     
                     // Find the associated task to check completion status
-                    const projTask = tasks.find(
-                      (t) =>
-                        t.id === proj.id ||
-                        (t.domainId === proj.domainId &&
-                          !t.boardId &&
-                          (t.planningEngineType === "MULTI_TASK" ||
-                            (t.repeatConfig as { engine?: string })?.engine === "MULTI_TASK" ||
-                            (t.repeatConfig as { frequency?: string })?.frequency === "multi_task") &&
-                          t.title.toLowerCase() === proj.title.toLowerCase())
+                    const projTask = resolveMultiTaskProjectTask(
+                      proj.id,
+                      proj.title,
+                      proj.domainId,
+                      tasks
                     );
                     const isCompleted = Boolean(projTask && isCompletedToday(projTask, today));
                     const accent = projDomain?.accentColor || "#3B82F6";
@@ -598,7 +594,17 @@ export function Sidebar() {
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              openFocusModal(projTask || null);
+                              const targetTask: TaskItem = projTask || {
+                                id: proj.id,
+                                title: proj.title,
+                                domainId: proj.domainId,
+                                columnId: "TODO",
+                                isCompleted: false,
+                                xpReward: 50,
+                                sortOrder: 0,
+                                planningEngineType: "MULTI_TASK",
+                              };
+                              openFocusModal(targetTask);
                             }}
                             className="p-1 rounded text-wellness-emerald hover:bg-wellness-emerald/15 transition-all cursor-pointer"
                             title="Focus on this project"

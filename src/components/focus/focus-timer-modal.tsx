@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useApp } from "@/lib/store/app-context";
 import { RadialTimer } from "./radial-timer";
 import { Button } from "@/components/ui/button";
@@ -27,30 +27,45 @@ export function FocusTimerModal() {
   const [earnedXp, setEarnedXp] = useState<number>(0);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const prevOpenRef = useRef<boolean>(false);
+  const currentTaskIdRef = useRef<string | null>(null);
 
+  // Initialize or reset timer ONLY when modal opens or target task changes.
+  // Must NOT re-run on background tasks polling (which updates tasks array every 3s).
   useEffect(() => {
-    if (focusTargetTask) {
-      setSelectedTaskId(focusTargetTask.id);
-      const dur = focusTargetTask.estimatedMinutes ? focusTargetTask.estimatedMinutes * 60 : 25 * 60;
+    if (
+      isFocusModalOpen &&
+      (!prevOpenRef.current || (focusTargetTask && focusTargetTask.id !== currentTaskIdRef.current))
+    ) {
+      const targetId = focusTargetTask?.id || (tasks.length > 0 ? tasks[0].id : "");
+      setSelectedTaskId(targetId);
+      currentTaskIdRef.current = focusTargetTask?.id ?? null;
+
+      const dur = focusTargetTask?.estimatedMinutes
+        ? focusTargetTask.estimatedMinutes * 60
+        : 25 * 60;
       setSelectedDuration(dur);
       setRemaining(dur);
       setIsRunning(false);
       setStartedAt(null);
       setSessionCompleted(false);
       setEarnedXp(0);
-    } else if (tasks.length > 0) {
-      setSelectedTaskId(tasks[0].id);
     }
-  }, [focusTargetTask, tasks]);
+
+    prevOpenRef.current = isFocusModalOpen;
+  }, [isFocusModalOpen, focusTargetTask?.id]);
 
   const clearModalState = () => {
+    if (timerRef.current) clearInterval(timerRef.current);
     setFocusTargetTask(null);
     closeFocusModal();
     setIsRunning(false);
     setStartedAt(null);
     setSessionCompleted(false);
     setEarnedXp(0);
-  }
+    currentTaskIdRef.current = null;
+    prevOpenRef.current = false;
+  };
 
   const activeTask = tasks.find((t) => t.id === selectedTaskId);
   const activeDomain = domains.find((d) => d.id === activeTask?.domainId) || domains[0];
@@ -83,7 +98,7 @@ export function FocusTimerModal() {
     setStartedAt(null);
   };
 
-  const handleSessionFinish = () => {
+  const handleSessionFinish = useCallback(() => {
     setIsRunning(false);
     const xp = Math.max(50, Math.floor((selectedDuration / 60) * 5));
     setEarnedXp(xp);
@@ -98,7 +113,10 @@ export function FocusTimerModal() {
       origin: { y: 0.6 },
       colors: ["#10B981", "#3B82F6", "#8B5CF6", "#ffffff"],
     });
-  };
+  }, [selectedDuration, displayTask, recordCompletedFocus]);
+
+  const finishRef = useRef(handleSessionFinish);
+  finishRef.current = handleSessionFinish;
 
   // Timer Tick
   useEffect(() => {
@@ -106,7 +124,10 @@ export function FocusTimerModal() {
       timerRef.current = setInterval(() => {
         setRemaining((prev) => {
           if (prev <= 1) {
-            handleSessionFinish();
+            if (timerRef.current) clearInterval(timerRef.current);
+            setTimeout(() => {
+              finishRef.current();
+            }, 0);
             return 0;
           }
           return prev - 1;
