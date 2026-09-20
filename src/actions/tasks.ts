@@ -5,20 +5,7 @@ import { revalidatePath } from "next/cache";
 import { getPysUidFromCookie } from "@/actions/auth";
 import { SkillRepeatConfig, TaskItem, LifeDomainItem } from "@/types";
 
-function isDailyRoutineTask(task: TaskItem): boolean {
-  const rc = task.repeatConfig as { engine?: string; frequency?: string } | null;
-  return rc?.engine === "DAILY_ROUTINE" || rc?.frequency === "daily";
-}
-
-function isSameDay(date1: Date | string | null | undefined, date2: Date): boolean {
-  if (!date1) return false;
-  const d1 = typeof date1 === "string" ? new Date(date1) : date1;
-  return (
-    d1.getFullYear() === date2.getFullYear() &&
-    d1.getMonth() === date2.getMonth() &&
-    d1.getDate() === date2.getDate()
-  );
-}
+import { isDailyPlanQuest, isSameDay } from "@/lib/schedule-utils";
 
 async function resetDailyRoutineTasks(
   tasks: TaskItem[],
@@ -27,7 +14,7 @@ async function resetDailyRoutineTasks(
 ): Promise<{ tasks: TaskItem[]; domains: LifeDomainItem[] }> {
   const today = new Date();
   const tasksToReset = tasks.filter(
-    (t) => t.isCompleted && isDailyRoutineTask(t) && !isSameDay(t.doneAt, today)
+    (t) => t.isCompleted && isDailyPlanQuest(t) && !isSameDay(t.doneAt, today)
   );
 
   if (tasksToReset.length === 0) {
@@ -45,20 +32,6 @@ async function resetDailyRoutineTasks(
     },
   });
 
-  for (const task of tasksToReset) {
-    const domain = domains.find((d) => d.id === task.domainId);
-    if (domain) {
-      await prisma.lifeDomain.update({
-        where: { id: domain.id },
-        data: { currentXp: { decrement: task.xpReward } },
-      });
-    }
-    await prisma.user.update({
-      where: { id: userId },
-      data: { totalXp: { decrement: task.xpReward } },
-    });
-  }
-
   const updatedTasks = tasks.map((t) => {
     const resetTask = tasksToReset.find((rt) => rt.id === t.id);
     if (resetTask) {
@@ -67,14 +40,7 @@ async function resetDailyRoutineTasks(
     return t;
   });
 
-  const updatedDomains = domains.map((d) => {
-    const domainTasks = tasksToReset.filter((t) => t.domainId === d.id);
-    if (domainTasks.length === 0) return d;
-    const xpLost = domainTasks.reduce((sum, t) => sum + t.xpReward, 0);
-    return { ...d, currentXp: Math.max(0, d.currentXp - xpLost) };
-  });
-
-  return { tasks: updatedTasks, domains: updatedDomains };
+  return { tasks: updatedTasks, domains };
 }
 
 export async function getDashboardDataAction() {
@@ -484,6 +450,48 @@ export async function updateTaskAssigneeAction(taskId: string, assignee: { id: s
     return { success: true, task: updated };
   } catch (error) {
     console.error("Error updating task assignee in Neon:", error);
+    return { success: false, error: String(error) };
+  }
+}
+
+export async function updateMultiTaskProjectAction(
+  projectId: string,
+  updates: {
+    title?: string;
+    xpReward?: number;
+    estimatedMinutes?: number | null;
+    repeatConfig?: Record<string, unknown>;
+  }
+) {
+  try {
+    // Try as a Task record first
+    const existing = await prisma.task.findUnique({ where: { id: projectId } });
+    if (existing) {
+      const updated = await prisma.task.update({
+        where: { id: projectId },
+        data: {
+          ...(updates.title !== undefined && { title: updates.title }),
+          ...(updates.xpReward !== undefined && { xpReward: updates.xpReward }),
+          ...(updates.estimatedMinutes !== undefined && { estimatedMinutes: updates.estimatedMinutes }),
+          ...(updates.repeatConfig !== undefined && { repeatConfig: updates.repeatConfig as any }),
+        },
+      });
+      revalidatePath("/dashboard");
+      revalidatePath("/calendar");
+      return { success: true, task: updated };
+    }
+
+    // Fall back to SkillPet (which only has a title)
+    const updatedPet = await prisma.skillPet.update({
+      where: { id: projectId },
+      data: {
+        ...(updates.title !== undefined && { title: updates.title }),
+      },
+    });
+    revalidatePath("/dashboard");
+    return { success: true, skillPet: updatedPet };
+  } catch (error) {
+    console.error("Error updating multi-task project in Neon:", error);
     return { success: false, error: String(error) };
   }
 }

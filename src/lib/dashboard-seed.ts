@@ -11,20 +11,7 @@ import {
   type SharedProjectWithTasks,
 } from "@/lib/shared-project";
 
-function isDailyRoutineTask(task: TaskItem): boolean {
-  const rc = task.repeatConfig as { engine?: string; frequency?: string } | null;
-  return rc?.engine === "DAILY_ROUTINE" || rc?.frequency === "daily";
-}
-
-function isSameDay(date1: Date | string | null | undefined, date2: Date): boolean {
-  if (!date1) return false;
-  const d1 = typeof date1 === "string" ? new Date(date1) : date1;
-  return (
-    d1.getFullYear() === date2.getFullYear() &&
-    d1.getMonth() === date2.getMonth() &&
-    d1.getDate() === date2.getDate()
-  );
-}
+import { isDailyPlanQuest, isSameDay } from "@/lib/schedule-utils";
 
 async function resetDailyRoutineTasks(
   tasks: TaskItem[],
@@ -33,7 +20,7 @@ async function resetDailyRoutineTasks(
 ): Promise<{ tasks: TaskItem[]; domains: LifeDomainItem[] }> {
   const today = new Date();
   const tasksToReset = tasks.filter(
-    (t) => t.isCompleted && isDailyRoutineTask(t) && !isSameDay(t.doneAt, today)
+    (t) => t.isCompleted && isDailyPlanQuest(t) && !isSameDay(t.doneAt, today)
   );
 
   if (tasksToReset.length === 0) {
@@ -51,19 +38,8 @@ async function resetDailyRoutineTasks(
     },
   });
 
-  for (const task of tasksToReset) {
-    const domain = domains.find((d) => d.id === task.domainId);
-    if (domain) {
-      await prisma.lifeDomain.update({
-        where: { id: domain.id },
-        data: { currentXp: { decrement: task.xpReward } },
-      });
-    }
-    await prisma.user.update({
-      where: { id: userId },
-      data: { totalXp: { decrement: task.xpReward } },
-    });
-  }
+  // Daily quest resets reset the daily checklist for the new day so the user can
+  // dedicate time and earn XP again today. Earned lifetime XP is preserved.
 
   const updatedTasks = tasks.map((t) => {
     const resetTask = tasksToReset.find((rt) => rt.id === t.id);
@@ -73,14 +49,7 @@ async function resetDailyRoutineTasks(
     return t;
   });
 
-  const updatedDomains = domains.map((d) => {
-    const domainTasks = tasksToReset.filter((t) => t.domainId === d.id);
-    if (domainTasks.length === 0) return d;
-    const xpLost = domainTasks.reduce((sum, t) => sum + t.xpReward, 0);
-    return { ...d, currentXp: Math.max(0, d.currentXp - xpLost) };
-  });
-
-  return { tasks: updatedTasks, domains: updatedDomains };
+  return { tasks: updatedTasks, domains };
 }
 
 function resetDailyRoutineTasksClient(
@@ -89,7 +58,7 @@ function resetDailyRoutineTasksClient(
 ): { tasks: TaskItem[]; domains: LifeDomainItem[] } {
   const today = new Date();
   const tasksToReset = tasks.filter(
-    (t) => t.isCompleted && isDailyRoutineTask(t) && !isSameDay(t.doneAt, today)
+    (t) => t.isCompleted && isDailyPlanQuest(t) && !isSameDay(t.doneAt, today)
   );
 
   if (tasksToReset.length === 0) {
@@ -104,14 +73,7 @@ function resetDailyRoutineTasksClient(
     return t;
   });
 
-  const updatedDomains = domains.map((d) => {
-    const domainTasks = tasksToReset.filter((t) => t.domainId === d.id);
-    if (domainTasks.length === 0) return d;
-    const xpLost = domainTasks.reduce((sum, t) => sum + t.xpReward, 0);
-    return { ...d, currentXp: Math.max(0, d.currentXp - xpLost) };
-  });
-
-  return { tasks: updatedTasks, domains: updatedDomains };
+  return { tasks: updatedTasks, domains };
 }
 
 export interface DashboardSeedData {

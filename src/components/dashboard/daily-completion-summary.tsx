@@ -5,7 +5,7 @@ import { useApp } from "@/lib/store/app-context";
 import { CheckCircle2, AlertCircle, Clock, Layers, RotateCcw, Calendar, CalendarDays, Zap, ArrowUp, ArrowDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TaskItem } from "@/types";
-import { getTodayString } from "@/lib/schedule-utils";
+import { getTodayString, isCompletedToday } from "@/lib/schedule-utils";
 
 function isMultiTaskProject(task: TaskItem): boolean {
   const rc = task.repeatConfig as { engine?: string; frequency?: string } | null;
@@ -108,7 +108,7 @@ export function DailyCompletionSummary() {
         label: "Daily Routines",
         icon: RotateCcw,
         total: dailyRoutineTasks.length,
-        completed: dailyRoutineTasks.filter((t) => t.isCompleted).length,
+        completed: dailyRoutineTasks.filter((t) => isCompletedToday(t, today)).length,
         color: "#10B981",
         bgClass: "bg-emerald-500/10 border-emerald-500/30 text-emerald-300",
       },
@@ -116,7 +116,7 @@ export function DailyCompletionSummary() {
         label: "Projects",
         icon: Layers,
         total: multiTaskProjects.length,
-        completed: multiTaskProjects.filter((t) => t.isCompleted).length,
+        completed: multiTaskProjects.filter((t) => isCompletedToday(t, today)).length,
         color: "#8B5CF6",
         bgClass: "bg-purple-500/10 border-purple-500/30 text-purple-300",
       },
@@ -124,7 +124,7 @@ export function DailyCompletionSummary() {
         label: "Scheduled",
         icon: CalendarDays,
         total: customScheduleTasks.length,
-        completed: customScheduleTasks.filter((t) => t.isCompleted).length,
+        completed: customScheduleTasks.filter((t) => isCompletedToday(t, today)).length,
         color: "#3B82F6",
         bgClass: "bg-blue-500/10 border-blue-500/30 text-blue-300",
       },
@@ -132,7 +132,7 @@ export function DailyCompletionSummary() {
         label: "One-off",
         icon: Calendar,
         total: specificDateTasks.length,
-        completed: specificDateTasks.filter((t) => t.isCompleted).length,
+        completed: specificDateTasks.filter((t) => isCompletedToday(t, today)).length,
         color: "#F59E0B",
         bgClass: "bg-amber-400/10 border-amber-400/30 text-amber-300",
       },

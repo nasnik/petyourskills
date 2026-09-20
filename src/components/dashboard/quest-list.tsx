@@ -7,7 +7,7 @@ import { Clock, CheckCircle2, Plus, Calendar, CalendarDays, Layers, RotateCcw, P
 import { cn } from "@/lib/utils";
 import { formatFriendlyDate } from "@/components/shared/skill-schedule-config";
 import { TaskItem } from "@/types";
-import { getTodayString } from "@/lib/schedule-utils";
+import { getTodayString, isCompletedToday } from "@/lib/schedule-utils";
 import { getDomainAvatarEmoji } from "@/lib/avatar-utils";
 
 function getScheduleBadge(task: TaskItem) {
@@ -157,13 +157,14 @@ export function QuestList() {
   }, [tasks]);
 
   const filteredTasks = dailyTasks.filter((task) => {
-    if (filter === "PENDING") return !task.isCompleted;
-    if (filter === "COMPLETED") return task.isCompleted;
+    const isDone = isCompletedToday(task);
+    if (filter === "PENDING") return !isDone;
+    if (filter === "COMPLETED") return isDone;
     return true;
   });
 
-  const pendingCount = dailyTasks.filter((t) => !t.isCompleted).length;
-  const completedCount = dailyTasks.filter((t) => t.isCompleted).length;
+  const pendingCount = dailyTasks.filter((t) => !isCompletedToday(t)).length;
+  const completedCount = dailyTasks.filter((t) => isCompletedToday(t)).length;
   const multiTaskCount = dailyTasks.filter(isMultiTaskProject).length;
   const dailyRoutineCount = dailyTasks.filter(isDailyRoutine).length;
 
@@ -252,20 +253,22 @@ export function QuestList() {
             const EngineIcon = getEngineIcon(engine);
             const isProject = isMultiTaskProject(task);
 
+            const isTaskDone = isCompletedToday(task);
+
             return (
               <div
                 key={task.id}
                 onClick={() => openTaskInspector(task)}
                 className={cn(
                   "p-4 rounded border transition-all duration-200 flex items-center justify-between gap-4 cursor-pointer",
-                  task.isCompleted
+                  isTaskDone
                     ? "bg-charcoal-surface/40 border-white/5 opacity-80"
                     : "bg-charcoal-surface border-white/10 hover:border-white/25 hover:bg-surface-container"
                 )}
               >
                 <div className="flex items-center gap-3.5 min-w-0">
                   <Checkbox
-                    checked={task.isCompleted}
+                    checked={isTaskDone}
                     color={domain?.accentColor || "#10B981"}
                     size="md"
                     onChange={() => toggleTaskComplete(task.id)}
@@ -275,7 +278,7 @@ export function QuestList() {
                     <h4
                       className={cn(
                         "text-sm font-semibold text-white truncate flex items-center gap-2",
-                        task.isCompleted && "line-through text-outline"
+                        isTaskDone && "line-through text-outline"
                       )}
                     >
                       <span className="text-lg shrink-0" aria-hidden="true">
@@ -340,7 +343,7 @@ export function QuestList() {
 
                       <span>•</span>
 
-                      {task.isCompleted ? (
+                      {isTaskDone ? (
                         <span className="text-wellness-emerald flex items-center gap-1">
                           <CheckCircle2 size={11} />
                           Completed

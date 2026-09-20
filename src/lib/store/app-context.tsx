@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useRef, useMemo } from "rea
 import { LifeDomainItem, TaskItem, UserProfile, FocusSessionItem, CommentItem } from "@/types";
 import { INITIAL_DOMAINS, INITIAL_TASKS, INITIAL_USER_PROFILE } from "@/lib/mock-data";
 import { calculateUserRank } from "@/lib/gamification/xp-engine";
+import { isDailyPlanQuest, isSameDay } from "@/lib/schedule-utils";
 
 export interface AddSkillOrTaskParams {
   domainId?: string;
@@ -41,6 +42,7 @@ interface AppContextType {
   }) => void;
   updateTask: (task: Partial<TaskItem> & { id: string }) => void;
   deleteTask: (taskId: string) => void;
+  updateMultiTaskProject: (projectId: string, updates: { title?: string; xpReward?: number; estimatedMinutes?: number | null; repeatConfig?: Record<string, unknown> }) => Promise<void>;
 
   // Live board sync: re-fetch a shared project's cards from the server and
   // merge them into local state (used by the board poller so collaborators
@@ -102,8 +104,38 @@ export function AppProvider({
 }: AppProviderProps) {
   const [user, setUser] = useState<UserProfile>(initialUser ?? INITIAL_USER_PROFILE);
   const [domains, setDomains] = useState<LifeDomainItem[]>(initialDomains ?? INITIAL_DOMAINS);
-  const [tasks, setTasks] = useState<TaskItem[]>(initialTasks ?? INITIAL_TASKS);
+  const [tasks, setTasks] = useState<TaskItem[]>(() => {
+    const raw = initialTasks ?? INITIAL_TASKS;
+    const now = new Date();
+    return raw.map((t) => {
+      if (t.isCompleted && isDailyPlanQuest(t) && !isSameDay(t.doneAt, now)) {
+        return { ...t, isCompleted: false, columnId: "TODO" as const, doneAt: null };
+      }
+      return t;
+    });
+  });
   const [selectedDomainSlug, setSelectedDomainSlug] = useState<string | null>(null);
+
+  // Auto-reset daily routine and multi-task project completion when a new day begins
+  React.useEffect(() => {
+    const checkMidnightReset = () => {
+      const now = new Date();
+      setTasks((prev) => {
+        let changed = false;
+        const updated = prev.map((t) => {
+          if (t.isCompleted && isDailyPlanQuest(t) && !isSameDay(t.doneAt, now)) {
+            changed = true;
+            return { ...t, isCompleted: false, columnId: "TODO" as const, doneAt: null };
+          }
+          return t;
+        });
+        return changed ? updated : prev;
+      });
+    };
+
+    const interval = setInterval(checkMidnightReset, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Multi-Task Project Kanban Workspace state
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
@@ -464,6 +496,39 @@ export function AppProvider({
     }
   };
 
+  const updateMultiTaskProject = async (
+    projectId: string,
+    updates: { title?: string; xpReward?: number; estimatedMinutes?: number | null; repeatConfig?: Record<string, unknown> }
+  ) => {
+    // Optimistically update local state
+    if (updates.title !== undefined) {
+      // Update skill pets in domains
+      setDomains((prev) =>
+        prev.map((d) => ({
+          ...d,
+          skillPets: d.skillPets?.map((p) =>
+            p.id === projectId ? { ...p, title: updates.title! } : p
+          ),
+        }))
+      );
+    }
+    setTasks((prev) =>
+      prev.map((t) => {
+        if (t.id !== projectId) return t;
+        return {
+          ...t,
+          ...(updates.title !== undefined && { title: updates.title }),
+          ...(updates.xpReward !== undefined && { xpReward: updates.xpReward }),
+          ...(updates.estimatedMinutes !== undefined && { estimatedMinutes: updates.estimatedMinutes }),
+          ...(updates.repeatConfig !== undefined && { repeatConfig: updates.repeatConfig }),
+        };
+      })
+    );
+    // Persist to server
+    const { updateMultiTaskProjectAction } = await import("@/actions/tasks");
+    await updateMultiTaskProjectAction(projectId, updates).catch(console.error);
+  };
+
   // Tracks recently deleted task ids so the board poller doesn't resurrect
   // a card whose server-side delete is still in flight.
   const recentlyDeletedRef = useRef<Map<string, number>>(new Map());
@@ -659,6 +724,7 @@ export function AppProvider({
         addProjectSubtask,
         updateTask,
         deleteTask,
+        updateMultiTaskProject,
         refreshProjectTasks,
         activeProjectId,
         setActiveProjectId,

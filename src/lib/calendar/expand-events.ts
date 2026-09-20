@@ -64,7 +64,12 @@ function isOccurrenceCompleted(task: TaskItem, dateStr: string): boolean {
   if (dateStr > todayStr) return false;
 
   // If the task/project is marked completed, it indicates work completed today only
-  if (dateStr === todayStr) return true;
+  if (dateStr === todayStr) {
+    if (task.doneAt) {
+      return toDateStr(new Date(task.doneAt)) === todayStr;
+    }
+    return true;
+  }
 
   // For past dates — do NOT retroactively mark them completed.
   // Marking a task complete signals "I worked on this today", not "all past dates are done".

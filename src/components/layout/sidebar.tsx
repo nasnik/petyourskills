@@ -21,11 +21,15 @@ import {
   Trash2,
   CalendarX,
   Plus,
+  Pencil,
+  Save,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { expandEvents, toDateStr } from "@/lib/calendar/expand-events";
 import { TaskItem } from "@/types";
 import { getDomainAvatarEmoji } from "@/lib/avatar-utils";
+import { isCompletedToday, resolveMultiTaskProjectTask, buildMultiTaskProjectSavePlan } from "@/lib/schedule-utils";
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -40,6 +44,7 @@ export function Sidebar() {
     toggleTaskComplete,
     updateTask,
     deleteTask,
+    updateMultiTaskProject,
     activeProjectId,
     setActiveProjectId,
   } = useApp();
@@ -56,6 +61,72 @@ export function Sidebar() {
     task?: TaskItem;
     isRecurring: boolean;
   } | null>(null);
+
+  // Edit Project modal state
+  type EditProjectState = {
+    /** Project id — may be a SkillPet id or a Task id */
+    id: string;
+    /** Associated root Task id; differs from id for SkillPet-backed projects */
+    taskId: string | null;
+    title: string;
+    xpReward: number;
+    estimatedMinutes: string;
+    startDate: string;
+    endDate: string;
+  };
+  const [editingProject, setEditingProject] = useState<EditProjectState | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
+  const [pendingDeleteProject, setPendingDeleteProject] = useState<{ id: string; title: string } | null>(null);
+
+  const openEditProject = (proj: { id: string; title: string; domainId: string; domain: (typeof domains)[0] }) => {
+    // Find the root task to get current settings
+    const projTask = resolveMultiTaskProjectTask(proj.id, proj.title, proj.domainId, tasks);
+    const rc = projTask?.repeatConfig as { startDate?: string; endDate?: string } | null;
+    setEditingProject({
+      id: proj.id,
+      // For SkillPet-backed projects the task id differs — track it so date saves go to the right row
+      taskId: projTask ? projTask.id : null,
+      title: proj.title,
+      xpReward: projTask?.xpReward ?? 50,
+      estimatedMinutes: projTask?.estimatedMinutes ? String(projTask.estimatedMinutes) : "",
+      startDate: rc?.startDate ?? "",
+      endDate: rc?.endDate ?? "",
+    });
+  };
+
+  const handleSaveEditProject = async () => {
+    if (!editingProject) return;
+    setEditSaving(true);
+
+    const effectiveTaskId = editingProject.taskId ?? editingProject.id;
+    const projTask = tasks.find((t) => t.id === effectiveTaskId);
+    const prevRc = (projTask?.repeatConfig as Record<string, unknown>) ?? {};
+
+    const plan = buildMultiTaskProjectSavePlan({
+      projectId: editingProject.id,
+      taskId: editingProject.taskId,
+      title: editingProject.title,
+      xpReward: editingProject.xpReward,
+      estimatedMinutesStr: editingProject.estimatedMinutes,
+      startDate: editingProject.startDate,
+      endDate: editingProject.endDate,
+      prevRepeatConfig: prevRc,
+    });
+
+    if (plan.isSkillPetBacked && plan.petUpdates) {
+      // SkillPet-backed project: update pet title + task record separately
+      await Promise.all([
+        updateMultiTaskProject(editingProject.id, plan.petUpdates),
+        updateMultiTaskProject(plan.targetTaskId, plan.taskUpdates),
+      ]);
+    } else {
+      // Task-backed project: single call covers everything
+      await updateMultiTaskProject(editingProject.id, plan.taskUpdates);
+    }
+
+    setEditSaving(false);
+    setEditingProject(null);
+  };
 
   // Auto-refresh at midnight so the date ticks over without a page reload
   useEffect(() => {
@@ -100,6 +171,7 @@ export function Sidebar() {
       .filter(
         (t) =>
           t.domainId === d.id &&
+          !t.boardId &&
           (t.planningEngineType === "MULTI_TASK" ||
             (t.repeatConfig as { engine?: string })?.engine === "MULTI_TASK")
       )
@@ -305,7 +377,7 @@ export function Sidebar() {
             <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-wider text-outline px-1 font-bold">
               <span>Today&apos;s Focus & Habits</span>
               <span className="text-[10px] text-wellness-emerald font-semibold">
-                {visibleHabits.filter((h) => h.isCompleted).length}/{visibleHabits.length} done
+                {visibleHabits.filter((h) => isCompletedToday(h, today)).length}/{visibleHabits.length} done
               </span>
             </div>
 
@@ -330,6 +402,7 @@ export function Sidebar() {
                 {visibleHabits.map((task) => {
                   const domain = domains.find((d) => d.id === task.domainId);
                   const accent = domain?.accentColor || "#10B981";
+                  const isTaskDoneToday = isCompletedToday(task, today);
 
                   return (
                     <div
@@ -337,14 +410,14 @@ export function Sidebar() {
                       onClick={() => openTaskInspector(task)}
                       className={cn(
                         "group flex items-center justify-between gap-2.5 p-2.5 rounded-lg text-xs transition-all border cursor-pointer",
-                        task.isCompleted
+                        isTaskDoneToday
                           ? "bg-obsidian-deep/50 border-white/5 opacity-60 hover:opacity-100"
                           : "bg-obsidian-deep border-white/10 hover:border-white/25 hover:bg-surface-container-lowest/60 shadow-sm"
                       )}
                     >
                       <div className="flex items-center gap-2.5 min-w-0 flex-1">
                         <Checkbox
-                          checked={task.isCompleted}
+                          checked={isTaskDoneToday}
                           color={accent}
                           size="sm"
                           onChange={() => toggleTaskComplete(task.id)}
@@ -354,7 +427,7 @@ export function Sidebar() {
                           <div
                             className={cn(
                               "font-semibold text-white truncate text-xs transition-colors flex items-center gap-1.5",
-                              task.isCompleted && "line-through text-outline"
+                              isTaskDoneToday && "line-through text-outline"
                             )}
                           >
                             <span className="text-base shrink-0" aria-hidden="true">
@@ -441,10 +514,17 @@ export function Sidebar() {
                     const projDomain = proj.domain;
                     
                     // Find the associated task to check completion status
-                    const projTask = tasks.find((t) => t.id === proj.id || 
-                      (t.domainId === proj.domainId && (t.planningEngineType === "MULTI_TASK" || (t.repeatConfig as { engine?: string })?.engine === "MULTI_TASK" && t.title === proj.title))
+                    const projTask = tasks.find(
+                      (t) =>
+                        t.id === proj.id ||
+                        (t.domainId === proj.domainId &&
+                          !t.boardId &&
+                          (t.planningEngineType === "MULTI_TASK" ||
+                            (t.repeatConfig as { engine?: string })?.engine === "MULTI_TASK" ||
+                            (t.repeatConfig as { frequency?: string })?.frequency === "multi_task") &&
+                          t.title.toLowerCase() === proj.title.toLowerCase())
                     );
-                    const isCompleted = projTask?.isCompleted ?? false;
+                    const isCompleted = Boolean(projTask && isCompletedToday(projTask, today));
                     const accent = projDomain?.accentColor || "#3B82F6";
 
                     return (
@@ -498,28 +578,34 @@ export function Sidebar() {
                           </div>
                         </div>
 
-                        <span
-                          className="text-[9px] font-mono px-1.5 py-0.5 rounded uppercase font-bold flex items-center gap-1 shrink-0"
-                          style={{
-                            backgroundColor: `${accent}20`,
-                            color: accent,
-                            border: `1px solid ${accent}40`,
-                          }}
-                        >
-                          <Layers size={9} />
-                          <span>Board</span>
-                        </span>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openFocusModal(projTask || null);
-                          }}
-                          className="p-1 rounded text-wellness-emerald hover:bg-wellness-emerald/15 transition-all cursor-pointer"
-                          title="Focus on this project"
-                        >
-                          <Play size={13} className="fill-wellness-emerald" />
-                        </button>
+                        <div className="flex items-center gap-1 shrink-0">
+                          {/* Edit button — only for project owners (non-guest) */}
+                          {!isGuest && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openEditProject(proj);
+                              }}
+                              className="p-1 rounded text-outline hover:text-blue-400 hover:bg-blue-500/15 transition-all cursor-pointer"
+                              title="Edit project settings"
+                              aria-label={`Edit ${proj.title}`}
+                            >
+                              <Pencil size={13} />
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openFocusModal(projTask || null);
+                            }}
+                            className="p-1 rounded text-wellness-emerald hover:bg-wellness-emerald/15 transition-all cursor-pointer"
+                            title="Focus on this project"
+                          >
+                            <Play size={13} className="fill-wellness-emerald" />
+                          </button>
+                        </div>
                       </div>
                     );
                   })}
@@ -565,7 +651,7 @@ export function Sidebar() {
         </div>
       </aside>
 
-      {/* Delete Confirmation Modal */}
+      {/* Delete Confirmation Modal (habits) */}
       {pendingDelete && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-obsidian-deep/80 backdrop-blur-sm animate-in fade-in-10 duration-200"
@@ -634,6 +720,209 @@ export function Sidebar() {
                 className="px-4 py-2 rounded-lg text-xs font-medium text-outline hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
               >
                 Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Project Modal — owner only */}
+      {editingProject && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-obsidian-deep/80 backdrop-blur-sm animate-in fade-in-10 duration-200"
+          onClick={() => !editSaving && setEditingProject(null)}
+        >
+          <div
+            className="w-full max-w-md bg-charcoal-surface border border-white/15 rounded-xl shadow-2xl p-5 space-y-5 animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-lg bg-blue-500/15 border border-blue-500/30 flex items-center justify-center text-blue-400">
+                  <Pencil size={16} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white tracking-tight">Edit Project</h3>
+                  <p className="text-[10px] text-outline font-mono">Multi-Task Project Settings</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingProject(null)}
+                className="p-1.5 rounded-lg text-outline hover:text-white hover:bg-white/10 transition-all cursor-pointer"
+                disabled={editSaving}
+              >
+                <X size={15} />
+              </button>
+            </div>
+
+            {/* Form Fields */}
+            <div className="space-y-4">
+              {/* Project Name */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-mono font-semibold text-outline uppercase tracking-wider">
+                  Project Name
+                </label>
+                <input
+                  id="edit-project-title"
+                  type="text"
+                  value={editingProject.title}
+                  onChange={(e) => setEditingProject((p) => p ? { ...p, title: e.target.value } : p)}
+                  className="w-full bg-obsidian-deep border border-white/15 rounded-lg px-3 py-2.5 text-sm text-white placeholder-outline focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30 transition-all"
+                  placeholder="e.g. Interview Preparation"
+                  disabled={editSaving}
+                />
+              </div>
+
+              {/* XP Reward & Estimated Duration */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-mono font-semibold text-outline uppercase tracking-wider">
+                    XP Reward
+                  </label>
+                  <input
+                    id="edit-project-xp"
+                    type="number"
+                    min={1}
+                    max={500}
+                    value={editingProject.xpReward}
+                    onChange={(e) => setEditingProject((p) => p ? { ...p, xpReward: parseInt(e.target.value, 10) || 50 } : p)}
+                    className="w-full bg-obsidian-deep border border-white/15 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30 transition-all"
+                    disabled={editSaving}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-mono font-semibold text-outline uppercase tracking-wider">
+                    Est. Minutes
+                  </label>
+                  <input
+                    id="edit-project-minutes"
+                    type="number"
+                    min={1}
+                    value={editingProject.estimatedMinutes}
+                    onChange={(e) => setEditingProject((p) => p ? { ...p, estimatedMinutes: e.target.value } : p)}
+                    placeholder="Optional"
+                    className="w-full bg-obsidian-deep border border-white/15 rounded-lg px-3 py-2.5 text-sm text-white placeholder-outline focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30 transition-all"
+                    disabled={editSaving}
+                  />
+                </div>
+              </div>
+
+              {/* Date Range */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-mono font-semibold text-outline uppercase tracking-wider">
+                  Active Date Range <span className="normal-case text-[10px] opacity-60">(optional)</span>
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-outline font-mono">Start</span>
+                    <input
+                      id="edit-project-start"
+                      type="date"
+                      value={editingProject.startDate}
+                      onChange={(e) => setEditingProject((p) => p ? { ...p, startDate: e.target.value } : p)}
+                      className="w-full bg-obsidian-deep border border-white/15 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30 transition-all"
+                      disabled={editSaving}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-outline font-mono">End</span>
+                    <input
+                      id="edit-project-end"
+                      type="date"
+                      value={editingProject.endDate}
+                      onChange={(e) => setEditingProject((p) => p ? { ...p, endDate: e.target.value } : p)}
+                      className="w-full bg-obsidian-deep border border-white/15 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30 transition-all"
+                      disabled={editSaving}
+                    />
+                  </div>
+                </div>
+                <p className="text-[10px] text-outline leading-relaxed">
+                  Leave blank to keep the project active every day without a deadline.
+                </p>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center justify-between pt-2 border-t border-white/10">
+              {/* Delete project button */}
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingProject(null);
+                  setPendingDeleteProject({ id: editingProject.id, title: editingProject.title });
+                }}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium text-red-400 hover:text-red-300 hover:bg-red-500/10 border border-red-500/20 transition-all cursor-pointer"
+                disabled={editSaving}
+              >
+                <Trash2 size={13} />
+                <span>Delete Project</span>
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingProject(null)}
+                  className="px-3 py-2 rounded-lg text-xs font-medium text-outline hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+                  disabled={editSaving}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveEditProject}
+                  disabled={editSaving || !editingProject.title.trim()}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_12px_rgba(59,130,246,0.3)]"
+                >
+                  <Save size={13} />
+                  <span>{editSaving ? "Saving…" : "Save Changes"}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Project Confirmation Modal */}
+      {pendingDeleteProject && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-obsidian-deep/80 backdrop-blur-sm animate-in fade-in-10 duration-200"
+          onClick={() => setPendingDeleteProject(null)}
+        >
+          <div
+            className="w-full max-w-sm bg-charcoal-surface border border-red-500/20 rounded-xl shadow-2xl p-5 space-y-4 animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-full bg-red-500/15 border border-red-500/30 flex items-center justify-center text-red-400 shrink-0">
+                <Trash2 size={20} />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-white">Delete Project?</h3>
+                <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
+                  Permanently delete <span className="text-white font-semibold">&ldquo;{pendingDeleteProject.title}&rdquo;</span> and all its Kanban cards? This cannot be undone.
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-2 border-t border-white/10">
+              <button
+                type="button"
+                onClick={() => setPendingDeleteProject(null)}
+                className="px-3 py-2 rounded-lg text-xs font-medium text-outline hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  deleteTask(pendingDeleteProject.id);
+                  setPendingDeleteProject(null);
+                }}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold bg-red-600 hover:bg-red-500 text-white transition-all cursor-pointer"
+              >
+                <Trash2 size={13} />
+                <span>Delete Project</span>
               </button>
             </div>
           </div>
