@@ -511,6 +511,36 @@ export async function updateTaskDescriptionAction(taskId: string, description: s
   }
 }
 
+export async function updateTaskDetailsAction(
+  taskId: string,
+  updates: {
+    title?: string;
+    description?: string | null;
+    xpReward?: number;
+    estimatedMinutes?: number | null;
+    assignee?: { id: string; name: string } | null;
+  }
+) {
+  try {
+    const updated = await prisma.task.update({
+      where: { id: taskId },
+      data: {
+        ...(updates.title !== undefined && { title: updates.title }),
+        ...(updates.description !== undefined && { description: updates.description }),
+        ...(updates.xpReward !== undefined && { xpReward: updates.xpReward }),
+        ...(updates.estimatedMinutes !== undefined && { estimatedMinutes: updates.estimatedMinutes }),
+        ...(updates.assignee !== undefined && { assignee: updates.assignee as any }),
+      },
+    });
+    revalidatePath("/dashboard");
+    revalidatePath("/kanban");
+    return { success: true, task: updated };
+  } catch (error) {
+    console.error("Error updating task details in Neon:", error);
+    return { success: false, error: String(error) };
+  }
+}
+
 export async function addTaskCommentAction(
   taskId: string,
   body: string

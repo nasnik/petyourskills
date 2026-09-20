@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useApp } from "@/lib/store/app-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,18 +40,28 @@ export function TaskInspectorDrawer() {
   const [assignee, setAssignee] = useState("");
   const [description, setDescription] = useState("");
   const [commentText, setCommentText] = useState("");
-  const [isEditingDescription, setIsEditingDescription] = useState(false);
+  const inspectingTaskIdRef = useRef<string | null>(null);
 
+  // Initialize form fields ONLY when opening a task or when switching to a different task.
+  // Must NOT re-run on background tasks polling so uncommitted user input is never wiped.
   useEffect(() => {
-    if (inspectingTask) {
+    if (inspectingTask && inspectingTask.id !== inspectingTaskIdRef.current) {
+      inspectingTaskIdRef.current = inspectingTask.id;
       setTitle(inspectingTask.title);
       setXpReward(inspectingTask.xpReward || 25);
       setEstimatedMinutes(inspectingTask.estimatedMinutes || 30);
       setAssignee(inspectingTask.assignee?.name || "");
       setDescription(inspectingTask.description || "");
+    } else if (!inspectingTask) {
+      inspectingTaskIdRef.current = null;
+    }
+  }, [inspectingTask?.id]);
+
+  useEffect(() => {
+    if (inspectingTask?.id) {
       loadTaskComments(inspectingTask.id);
     }
-  }, [inspectingTask, loadTaskComments]);
+  }, [inspectingTask?.id, loadTaskComments]);
 
   if (!inspectingTask) return null;
 
@@ -59,13 +69,16 @@ export function TaskInspectorDrawer() {
     domains.find((d) => d.id === inspectingTask.domainId) || domains[0];
 
   const handleSave = () => {
+    const trimmedDesc = description.trim();
     updateTask({
       id: inspectingTask.id,
-      title,
+      title: title.trim() || inspectingTask.title,
+      description: trimmedDesc || null,
       xpReward,
       estimatedMinutes,
       assignee: assignee.trim() ? { id: "manual", name: assignee.trim() } : null,
     });
+    updateTaskDescription(inspectingTask.id, trimmedDesc || null);
     closeTaskInspector();
   };
 
@@ -204,39 +217,13 @@ export function TaskInspectorDrawer() {
                 <Edit3 size={12} />
                 Description
               </label>
-              {isEditingDescription ? (
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  onBlur={() => {
-                    setIsEditingDescription(false);
-                    if (inspectingTask) {
-                      updateTaskDescription(inspectingTask.id, description || null);
-                    }
-                  }}
-                  placeholder="Describe this task or project milestone..."
-                  rows={3}
-                  autoFocus
-                  className="w-full bg-obsidian-deep border border-wellness-emerald/40 rounded-lg px-3 py-2 text-sm font-mono text-white focus:outline-none resize-none"
-                />
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setIsEditingDescription(true)}
-                  className={cn(
-                    "w-full text-left min-h-[60px] p-3 rounded-lg border transition-all cursor-pointer",
-                    inspectingTask?.description
-                      ? "bg-obsidian-deep border-white/10 hover:border-white/20 text-white text-sm"
-                      : "bg-charcoal-surface/30 border-dashed border-white/10 text-outline/60 hover:text-on-surface hover:border-white/20"
-                  )}
-                >
-                  {inspectingTask?.description ? (
-                    <p className="whitespace-pre-wrap">{inspectingTask.description}</p>
-                  ) : (
-                    <span className="text-xs italic">Click to add a description...</span>
-                  )}
-                </button>
-              )}
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Describe this task or project milestone..."
+                rows={3}
+                className="w-full bg-obsidian-deep border border-white/15 rounded-lg px-3 py-2 text-sm font-mono text-white placeholder-outline/50 focus:outline-none focus:border-wellness-emerald focus:ring-1 focus:ring-wellness-emerald/30 resize-none transition-all"
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-4">

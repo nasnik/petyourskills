@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useRef, useMemo } from "react";
+import React, { createContext, useContext, useState, useRef, useMemo, useCallback } from "react";
 import { LifeDomainItem, TaskItem, UserProfile, FocusSessionItem, CommentItem } from "@/types";
 import { INITIAL_DOMAINS, INITIAL_TASKS, INITIAL_USER_PROFILE } from "@/lib/mock-data";
 import { calculateUserRank } from "@/lib/gamification/xp-engine";
@@ -488,10 +488,26 @@ export function AppProvider({
       });
     }
 
-    if (updated.assignee !== undefined) {
-      const assignee = updated.assignee ? { id: updated.assignee.id, name: updated.assignee.name } : null;
-      import("@/actions/tasks").then(({ updateTaskAssigneeAction }) => {
-        updateTaskAssigneeAction(updated.id, assignee).catch(console.error);
+    const hasDetails =
+      updated.title !== undefined ||
+      updated.description !== undefined ||
+      updated.xpReward !== undefined ||
+      updated.estimatedMinutes !== undefined ||
+      updated.assignee !== undefined;
+
+    if (hasDetails) {
+      import("@/actions/tasks").then(({ updateTaskDetailsAction }) => {
+        updateTaskDetailsAction(updated.id, {
+          title: updated.title,
+          description: updated.description,
+          xpReward: updated.xpReward,
+          estimatedMinutes: updated.estimatedMinutes,
+          assignee: updated.assignee
+            ? { id: updated.assignee.id, name: updated.assignee.name }
+            : updated.assignee === null
+            ? null
+            : undefined,
+        }).catch(console.error);
       });
     }
   };
@@ -584,15 +600,15 @@ export function AppProvider({
         // Skip cards deleted locally whose server delete is still in flight
         const merged = fetched.filter((t) => !recentlyDeleted.has(t.id));
         
-        // Merge: prefer local version if it has assignee and server doesn't,
-        // or if local was updated more recently (has assignee but server doesn't)
+        // Merge: prefer local version if it has assignee/description and server doesn't yet
         const mergedWithLocal = merged.map((serverTask) => {
           const localTask = prev.find((t) => t.id === serverTask.id);
-          if (localTask && localTask.assignee && !serverTask.assignee) {
-            // Preserve local assignee if server doesn't have it yet
-            return { ...serverTask, assignee: localTask.assignee };
-          }
-          return serverTask;
+          if (!localTask) return serverTask;
+          return {
+            ...serverTask,
+            assignee: localTask.assignee && !serverTask.assignee ? localTask.assignee : serverTask.assignee,
+            description: localTask.description && !serverTask.description ? localTask.description : serverTask.description,
+          };
         });
         
         return [...kept, ...mergedWithLocal];
@@ -606,12 +622,15 @@ export function AppProvider({
     setTasks((prev) =>
       prev.map((t) => (t.id === taskId ? { ...t, description } : t))
     );
+    if (inspectingTask && inspectingTask.id === taskId) {
+      setInspectingTask((prev) => (prev ? { ...prev, description } : null));
+    }
     import("@/actions/tasks").then(({ updateTaskDescriptionAction }) => {
       updateTaskDescriptionAction(taskId, description).catch(console.error);
     });
   };
 
-  const loadTaskComments = async (taskId: string) => {
+  const loadTaskComments = useCallback(async (taskId: string) => {
     // Check cache first
     if (comments.has(taskId)) return;
     try {
@@ -623,7 +642,7 @@ export function AppProvider({
     } catch (err) {
       console.error("Failed to load task comments:", err);
     }
-  };
+  }, [comments]);
 
   const addComment = (taskId: string, body: string) => {
     const trimmed = body.trim();
