@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Tests for Kanban board task description persistence.
  *
  * Covers the two regression scenarios reported:
@@ -62,6 +62,17 @@ const buildAppContext = (
   inspectingTask: TaskItem | null,
   extra: Record<string, unknown> = {}
 ) => ({
+  user: {
+    id: "user-1",
+    email: "user@petyourskills.local",
+    callSign: "Byte Wolf",
+    rankTier: 1,
+    rankTitle: "Novice",
+    totalXp: 100,
+    tierProgress: 50,
+    nextTierXp: 200,
+    isAnonymous: false,
+  },
   inspectingTask,
   closeTaskInspector: jest.fn(),
   updateTask: jest.fn(),

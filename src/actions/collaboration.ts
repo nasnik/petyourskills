@@ -7,6 +7,7 @@ import {
   isValidPassCodeFormat,
   normalizePassCode,
   passCodesMatch,
+  PYS_GUEST_NAME_COOKIE,
 } from "@/lib/collaboration";
 import { INITIAL_DOMAINS, INITIAL_TASKS } from "@/lib/mock-data";
 import { resolveSharedProjectById } from "@/lib/shared-project";
@@ -45,7 +46,7 @@ export interface ResolvedProject {
   domainAvatarSpecies: string | null;
 }
 
-async function setGuestCookies(userId: string, projectId: string) {
+async function setGuestCookies(userId: string, projectId: string, guestName?: string) {
   const cookieStore = await cookies();
   const opts = {
     httpOnly: true,
@@ -55,12 +56,24 @@ async function setGuestCookies(userId: string, projectId: string) {
   };
   cookieStore.set(PYS_UID_COOKIE, userId, opts);
   cookieStore.set(PYS_SHARED_COOKIE, projectId, opts);
+  if (guestName?.trim()) {
+    cookieStore.set(PYS_GUEST_NAME_COOKIE, guestName.trim(), {
+      ...opts,
+      httpOnly: false, // client-readable so join form and comments can prefill
+    });
+  }
 }
 
 /** Reads the shared-project cookie (server-side only). */
 export async function getPysSharedFromCookie(): Promise<string | null> {
   const cookieStore = await cookies();
   return cookieStore.get(PYS_SHARED_COOKIE)?.value ?? null;
+}
+
+/** Reads the remembered guest name cookie (server-side). */
+export async function getPysGuestNameFromCookie(): Promise<string | null> {
+  const cookieStore = await cookies();
+  return cookieStore.get(PYS_GUEST_NAME_COOKIE)?.value ?? null;
 }
 
 /**
@@ -176,11 +189,15 @@ function resolveMockProjectByPassCode(code: string): ResolvedProject | null {
  * Validates a project passkey and creates (or reuses) an anonymous guest
  * session scoped to exactly one shared project. The guest sees only that
  * project's board — never the host's other domains, habits, or pets.
+ * When guestName is provided, it is stored as their callSign so they are
+ * identified across comments, cards, and future project interactions.
  */
 export async function joinProjectWithPasskeyAction(
-  passCode: string
+  passCode: string,
+  guestName?: string
 ): Promise<JoinProjectResult> {
   const code = passCode?.trim() ?? "";
+  const cleanName = guestName?.trim() || "Guest Collaborator";
 
   if (!isValidPassCodeFormat(code)) {
     return {
@@ -208,7 +225,15 @@ export async function joinProjectWithPasskeyAction(
         .findUnique({ where: { id: existingUid } })
         .catch(() => null);
       if (existing?.isAnonymous && existing.sharedProjectId === project.id) {
-        await setGuestCookies(existing.id, project.id);
+        if (cleanName && cleanName !== "Guest Collaborator" && existing.callSign !== cleanName) {
+          await prisma.user
+            .update({
+              where: { id: existing.id },
+              data: { callSign: cleanName },
+            })
+            .catch(() => null);
+        }
+        await setGuestCookies(existing.id, project.id, cleanName !== "Guest Collaborator" ? cleanName : existing.callSign);
         return {
           success: true,
           project: {
@@ -229,7 +254,7 @@ export async function joinProjectWithPasskeyAction(
     const guest = await prisma.user.create({
       data: {
         email: guestEmail,
-        callSign: "Guest Collaborator",
+        callSign: cleanName,
         rankTier: 1,
         totalXp: 0,
         isAnonymous: true,
@@ -251,7 +276,7 @@ export async function joinProjectWithPasskeyAction(
         .catch(() => {});
     }
 
-    await setGuestCookies(guest.id, project.id);
+    await setGuestCookies(guest.id, project.id, cleanName);
 
     return {
       success: true,
@@ -281,7 +306,8 @@ export async function joinProjectWithPasskeyAction(
 
     await setGuestCookies(
       `guest-demo-${normalizePassCode(code).toLowerCase()}`,
-      mockProject.id
+      mockProject.id,
+      cleanName
     );
 
     return {
@@ -293,6 +319,40 @@ export async function joinProjectWithPasskeyAction(
         passCode: mockProject.passCode,
       },
     };
+  }
+}
+
+/**
+ * Updates the display name for the current guest user and persists it in cookie and DB.
+ */
+export async function updateGuestNameAction(
+  name: string
+): Promise<{ success: boolean; name?: string; error?: string }> {
+  const cleanName = name?.trim();
+  if (!cleanName || cleanName.length < 1) {
+    return { success: false, error: "Name cannot be empty." };
+  }
+  try {
+    const cookieStore = await cookies();
+    const uid = cookieStore.get(PYS_UID_COOKIE)?.value ?? null;
+    if (uid) {
+      await prisma.user
+        .update({
+          where: { id: uid },
+          data: { callSign: cleanName },
+        })
+        .catch(() => null);
+    }
+    const opts = {
+      httpOnly: false,
+      sameSite: "lax" as const,
+      path: "/",
+      maxAge: 60 * 60 * 24 * 30, // 30 days
+    };
+    cookieStore.set(PYS_GUEST_NAME_COOKIE, cleanName, opts);
+    return { success: true, name: cleanName };
+  } catch (err) {
+    return { success: false, error: String(err) };
   }
 }
 

@@ -57,7 +57,8 @@ interface AppContextType {
   updateTaskDescription: (taskId: string, description: string | null) => void;
   comments: Map<string, CommentItem[]>;
   loadTaskComments: (taskId: string) => Promise<void>;
-  addComment: (taskId: string, body: string) => void;
+  addComment: (taskId: string, body: string, authorName?: string) => void;
+  updateGuestName: (name: string) => Promise<void>;
 
   // Focus Timer Overlay State
   isFocusModalOpen: boolean;
@@ -136,6 +137,18 @@ export function AppProvider({
     const interval = setInterval(checkMidnightReset, 60000);
     return () => clearInterval(interval);
   }, []);
+
+  // Hydrate guest name from localStorage if session is anonymous and has generic name
+  React.useEffect(() => {
+    if (user.isAnonymous && (!user.callSign || user.callSign === "Guest Collaborator")) {
+      try {
+        const saved = localStorage.getItem("pys_guest_name");
+        if (saved?.trim()) {
+          setUser((prev) => ({ ...prev, callSign: saved.trim() }));
+        }
+      } catch {}
+    }
+  }, [user.isAnonymous, user.callSign]);
 
   // Multi-Task Project Kanban Workspace state
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
@@ -644,16 +657,40 @@ export function AppProvider({
     }
   }, [comments]);
 
-  const addComment = (taskId: string, body: string) => {
+  const updateGuestName = async (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    setUser((prev) => ({ ...prev, callSign: trimmed }));
+    try {
+      localStorage.setItem("pys_guest_name", trimmed);
+    } catch {}
+    const { updateGuestNameAction } = await import("@/actions/collaboration");
+    await updateGuestNameAction(trimmed).catch(console.error);
+  };
+
+  const addComment = (taskId: string, body: string, authorName?: string) => {
     const trimmed = body.trim();
     if (!trimmed) return;
+
+    const effectiveName =
+      authorName?.trim() ||
+      (user.callSign && user.callSign !== "Guest Collaborator" ? user.callSign : null) ||
+      (user.isAnonymous ? "Guest Collaborator" : user.callSign || "Anonymous");
+
+    // If an explicit authorName was supplied and user is anonymous, remember it in profile and storage
+    if (authorName?.trim() && user.isAnonymous) {
+      setUser((prev) => ({ ...prev, callSign: authorName.trim() }));
+      try {
+        localStorage.setItem("pys_guest_name", authorName.trim());
+      } catch {}
+    }
 
     // Optimistic comment
     const optimisticComment: CommentItem = {
       id: `cmt-${Date.now()}`,
       taskId,
-      userId: user.isAnonymous ? "guest" : user.id,
-      userName: user.isAnonymous ? "Guest Collaborator" : user.callSign,
+      userId: user.isAnonymous ? (user.id || "guest") : user.id,
+      userName: effectiveName,
       body: trimmed,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -665,14 +702,15 @@ export function AppProvider({
 
     // Persist to DB
     import("@/actions/tasks").then(({ addTaskCommentAction }) => {
-      addTaskCommentAction(taskId, trimmed).then((res) => {
+      addTaskCommentAction(taskId, trimmed, effectiveName).then((res) => {
         if (res.success && res.comment) {
           setComments((prev2) => {
             const existing = prev2.get(taskId) || [];
-            // Replace optimistic comment with real one (match by timestamp proximity)
-            const real = res.comment as { id: string; taskId: string; userId: string; createdAt: string };
+            const real = res.comment as CommentItem;
             const updated = existing.map((c) =>
-              c.id === optimisticComment.id ? { ...c, id: real.id } : c
+              c.id === optimisticComment.id
+                ? { ...c, id: real.id, userName: real.userName || c.userName }
+                : c
             );
             return new Map(prev2).set(taskId, updated);
           });
@@ -751,6 +789,7 @@ export function AppProvider({
         comments,
         loadTaskComments,
         addComment,
+        updateGuestName,
         isFocusModalOpen,
         focusTargetTask,
         focusSessions,

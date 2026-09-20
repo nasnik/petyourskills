@@ -11,12 +11,17 @@ export function UserRankBadge() {
 
   // Anonymous collaborator: scoped badge with sign-up CTA instead of XP rank
   if (user.isAnonymous) {
+    const displayName =
+      user.callSign && user.callSign !== "Guest Collaborator"
+        ? user.callSign
+        : "Guest Collaborator";
+
     return (
       <div className="bg-charcoal-surface border border-wellness-emerald/25 rounded p-3.5 relative overflow-hidden">
         <div className="flex items-center gap-1.5 text-xs mb-2 font-mono">
           <Users size={14} className="text-wellness-emerald" />
           <span className="font-semibold uppercase tracking-wider text-on-surface-variant">
-            Guest Collaborator
+            {displayName}
           </span>
         </div>
 

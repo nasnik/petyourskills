@@ -22,6 +22,7 @@ import { formatFriendlyDate } from "@/components/shared/skill-schedule-config";
 
 export function TaskInspectorDrawer() {
   const {
+    user,
     inspectingTask,
     closeTaskInspector,
     updateTask,
@@ -31,6 +32,7 @@ export function TaskInspectorDrawer() {
     updateTaskDescription,
     loadTaskComments,
     addComment,
+    updateGuestName,
     comments,
   } = useApp();
 
@@ -40,7 +42,15 @@ export function TaskInspectorDrawer() {
   const [assignee, setAssignee] = useState("");
   const [description, setDescription] = useState("");
   const [commentText, setCommentText] = useState("");
+  const [authorNameInput, setAuthorNameInput] = useState(user?.callSign || "");
+  const [isEditingAuthorName, setIsEditingAuthorName] = useState(false);
   const inspectingTaskIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (user?.callSign && user.callSign !== "Guest Collaborator") {
+      setAuthorNameInput(user.callSign);
+    }
+  }, [user?.callSign]);
 
   // Initialize form fields ONLY when opening a task or when switching to a different task.
   // Must NOT re-run on background tasks polling so uncommitted user input is never wiped.
@@ -332,6 +342,64 @@ export function TaskInspectorDrawer() {
                 </span>
               </div>
 
+              {/* Posting as Identity Header */}
+              <div className="flex items-center justify-between text-[11px] font-mono text-outline">
+                <div className="flex items-center gap-1.5">
+                  <User size={12} className="text-wellness-emerald" />
+                  <span>Posting as:</span>
+                  <span className="text-white font-semibold">
+                    {user?.callSign && user.callSign !== "Guest Collaborator"
+                      ? user.callSign
+                      : "Guest Collaborator"}
+                  </span>
+                </div>
+                {user?.isAnonymous && (
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingAuthorName(!isEditingAuthorName)}
+                    className="text-[10px] text-wellness-emerald hover:underline cursor-pointer flex items-center gap-1"
+                  >
+                    <Edit3 size={10} />
+                    <span>{isEditingAuthorName ? "Done" : "Change name"}</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Inline Guest Name Editor */}
+              {isEditingAuthorName && (
+                <div className="flex items-center gap-2 p-2 bg-obsidian-deep rounded border border-wellness-emerald/30 animate-in fade-in-10">
+                  <input
+                    type="text"
+                    value={authorNameInput}
+                    onChange={(e) => setAuthorNameInput(e.target.value)}
+                    placeholder="Enter your name..."
+                    className="flex-1 bg-transparent text-xs font-mono text-white outline-none placeholder:text-outline"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        if (authorNameInput.trim()) {
+                          updateGuestName(authorNameInput.trim());
+                          setIsEditingAuthorName(false);
+                        }
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (authorNameInput.trim()) {
+                        updateGuestName(authorNameInput.trim());
+                        setIsEditingAuthorName(false);
+                      }
+                    }}
+                    disabled={!authorNameInput.trim()}
+                    className="px-2 py-0.5 rounded bg-wellness-emerald text-obsidian-deep font-bold text-[10px] font-mono cursor-pointer hover:bg-wellness-emerald/90 disabled:opacity-40"
+                  >
+                    Save
+                  </button>
+                </div>
+              )}
+
               {/* Comment Input */}
               <div className="flex gap-2">
                 <Input
@@ -340,7 +408,9 @@ export function TaskInspectorDrawer() {
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
                       e.preventDefault();
-                      addComment(inspectingTask.id, commentText);
+                      if (!commentText.trim()) return;
+                      const author = authorNameInput.trim() || user?.callSign || "Guest Collaborator";
+                      addComment(inspectingTask.id, commentText, author);
                       setCommentText("");
                     }
                   }}
@@ -350,7 +420,9 @@ export function TaskInspectorDrawer() {
                 <button
                   type="button"
                   onClick={() => {
-                    addComment(inspectingTask.id, commentText);
+                    if (!commentText.trim()) return;
+                    const author = authorNameInput.trim() || user?.callSign || "Guest Collaborator";
+                    addComment(inspectingTask.id, commentText, author);
                     setCommentText("");
                   }}
                   disabled={!commentText.trim()}

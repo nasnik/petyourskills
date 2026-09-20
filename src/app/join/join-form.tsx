@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Sparkles,
   KeyRound,
@@ -14,14 +15,37 @@ import {
 import { isValidPassCodeFormat } from "@/lib/collaboration";
 import { joinProjectWithPasskeyAction } from "@/actions/collaboration";
 
-export function JoinForm({ initialCode }: { initialCode: string }) {
+export function JoinForm({
+  initialCode,
+  initialName = "",
+}: {
+  initialCode: string;
+  initialName?: string;
+}) {
+  const router = useRouter();
   const [code, setCode] = useState(initialCode.toUpperCase());
+  const [name, setName] = useState(initialName);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  React.useEffect(() => {
+    if (!name) {
+      try {
+        const saved = localStorage.getItem("pys_guest_name");
+        if (saved) setName(saved);
+      } catch {}
+    }
+  }, [name]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    const cleanName = name.trim();
+    if (!cleanName) {
+      setError("Please enter your name so your team knows who is commenting and updating tasks.");
+      return;
+    }
 
     if (!isValidPassCodeFormat(code)) {
       setError("Enter a valid project passkey (e.g. CYS-8941).");
@@ -30,11 +54,14 @@ export function JoinForm({ initialCode }: { initialCode: string }) {
 
     setLoading(true);
     try {
-      const result = await joinProjectWithPasskeyAction(code);
+      const result = await joinProjectWithPasskeyAction(code, cleanName);
       if (result.success) {
-        // Clean page load so the dashboard layout re-seeds with the
-        // anonymous collaborator session scoped to the shared project.
-        window.location.href = "/dashboard";
+        try {
+          localStorage.setItem("pys_guest_name", cleanName);
+        } catch {}
+        // Navigate to dashboard and refresh so server component re-seeds with guest session
+        router.push("/dashboard");
+        router.refresh();
         return;
       }
       setError(result.error || "Unable to join project with this passkey.");
@@ -83,25 +110,48 @@ export function JoinForm({ initialCode }: { initialCode: string }) {
                 Join Shared Project
               </h1>
               <p className="text-[11px] font-mono text-outline">
-                PASSKEY ACCESS • ANONYMOUS COLLABORATOR
+                PASSKEY ACCESS • COLLABORATOR IDENTITY
               </p>
             </div>
           </div>
 
           <p className="text-xs text-on-surface-variant leading-relaxed mb-6 mt-3">
-            Enter the project passkey from your host to open the shared Kanban
-            workspace. No account required — you&apos;ll join as an anonymous
-            collaborator with access to{" "}
-            <span className="text-white font-semibold">only this project</span>.
+            Enter your name and project passkey to open the shared Kanban workspace.
+            Your name identifies you on task cards, comments, and project milestones.
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label
-                htmlFor="passcode"
-                className="block text-[10px] font-mono uppercase tracking-wider text-outline mb-1.5"
+                htmlFor="guest-name"
+                className="block text-[10px] font-mono uppercase tracking-wider text-outline mb-1.5 flex items-center justify-between"
               >
-                Project Passkey
+                <span>Your Name / Call Sign</span>
+                <span className="text-wellness-emerald text-[9px] font-bold">REQUIRED</span>
+              </label>
+              <input
+                id="guest-name"
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Alex M. or Morgan"
+                autoFocus={!!initialCode}
+                autoComplete="name"
+                maxLength={50}
+                className="w-full h-11 px-3.5 rounded bg-obsidian-deep border border-white/15 focus:border-wellness-emerald/60 focus:ring-1 focus:ring-wellness-emerald/40 outline-none font-mono text-sm text-white placeholder:text-white/20 transition-all"
+              />
+              <p className="mt-1 text-[10px] font-mono text-outline">
+                This name will appear on all your task comments and activity.
+              </p>
+            </div>
+
+            <div>
+              <label
+                htmlFor="passcode"
+                className="block text-[10px] font-mono uppercase tracking-wider text-outline mb-1.5 flex items-center justify-between"
+              >
+                <span>Project Passkey</span>
+                <span className="text-outline text-[9px]">FROM HOST</span>
               </label>
               <input
                 id="passcode"
@@ -109,22 +159,23 @@ export function JoinForm({ initialCode }: { initialCode: string }) {
                 value={code}
                 onChange={(e) => setCode(e.target.value.toUpperCase())}
                 placeholder="CYS-8941"
-                autoFocus
+                autoFocus={!initialCode}
                 autoComplete="off"
                 spellCheck={false}
                 className="w-full h-12 px-4 rounded bg-obsidian-deep border border-white/15 focus:border-wellness-emerald/60 focus:ring-1 focus:ring-wellness-emerald/40 outline-none text-center font-mono text-lg font-bold tracking-[0.3em] text-wellness-emerald placeholder:text-white/20 placeholder:font-normal transition-all"
               />
-              {error && (
-                <p className="mt-2 text-[11px] font-mono text-danger-red flex items-center gap-1.5">
-                  <Shield size={12} />
-                  <span>{error}</span>
-                </p>
-              )}
             </div>
+
+            {error && (
+              <p className="text-[11px] font-mono text-danger-red flex items-center gap-1.5 bg-danger-red/10 border border-danger-red/20 p-2.5 rounded">
+                <Shield size={12} className="shrink-0" />
+                <span>{error}</span>
+              </p>
+            )}
 
             <button
               type="submit"
-              disabled={loading || code.trim().length === 0}
+              disabled={loading || code.trim().length === 0 || name.trim().length === 0}
               className="w-full h-11 rounded bg-wellness-emerald hover:bg-wellness-emerald/90 text-obsidian-deep font-bold text-xs font-mono uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)] active:scale-[0.99] cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {loading ? (

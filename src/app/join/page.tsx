@@ -1,5 +1,6 @@
 import React from "react";
 import { JoinForm } from "./join-form";
+import { getPysGuestNameFromCookie } from "@/actions/collaboration";
 
 export default async function JoinPage({
   searchParams,
@@ -8,6 +9,7 @@ export default async function JoinPage({
 }) {
   const { code } = await searchParams;
   const initialCode = typeof code === "string" ? code : "";
+  const initialName = (await getPysGuestNameFromCookie()) ?? "";
 
-  return <JoinForm initialCode={initialCode} />;
+  return <JoinForm initialCode={initialCode} initialName={initialName} />;
 }

@@ -4,6 +4,8 @@
  * and server actions alike.
  */
 
+export const PYS_GUEST_NAME_COOKIE = "pys_guest_name";
+
 /**
  * Derives the deterministic, memorable passcode for a project title.
  * e.g. "CYS" -> "CYS-8941", "Pet Your Skills" -> "PETY-8941"

@@ -4,7 +4,7 @@ import { calculateUserRank } from "@/lib/gamification/xp-engine";
 import { LifeDomainItem, TaskItem, UserProfile, FocusSessionItem } from "@/types";
 import { INITIAL_USER_PROFILE, INITIAL_DOMAINS, INITIAL_TASKS } from "@/lib/mock-data";
 import { getPysUidFromCookie } from "@/actions/auth";
-import { getPysSharedFromCookie } from "@/actions/collaboration";
+import { getPysSharedFromCookie, getPysGuestNameFromCookie } from "@/actions/collaboration";
 import {
   mapDbTask,
   resolveSharedProjectById,
@@ -129,12 +129,18 @@ function buildSharedWorkspace(
 
 function buildGuestUserProfile(
   dbUser: { id: string; email: string; callSign: string },
-  sharedProjectId: string
+  sharedProjectId: string,
+  guestNameCookie?: string | null
 ): UserProfile {
+  const resolvedName =
+    dbUser.callSign && dbUser.callSign !== "Guest Collaborator"
+      ? dbUser.callSign
+      : guestNameCookie?.trim() || dbUser.callSign || "Guest Collaborator";
+
   return {
     id: dbUser.id,
     email: dbUser.email,
-    callSign: dbUser.callSign || "Guest Collaborator",
+    callSign: resolvedName,
     rankTier: 1,
     rankTitle: "Guest",
     totalXp: 0,
@@ -151,7 +157,8 @@ function buildGuestUserProfile(
  */
 function buildMockGuestSeedData(
   uid: string,
-  sharedProjectId: string | null
+  sharedProjectId: string | null,
+  guestName?: string | null
 ): DashboardSeedData | null {
   if (!sharedProjectId) return null;
 
@@ -196,7 +203,7 @@ function buildMockGuestSeedData(
     user: {
       id: uid,
       email: "guest@session.local",
-      callSign: "Guest Collaborator",
+      callSign: guestName?.trim() || "Guest Collaborator",
       rankTier: 1,
       rankTitle: "Guest",
       totalXp: 0,
@@ -249,12 +256,16 @@ export async function fetchDashboardSeedData(): Promise<DashboardSeedData> {
     const sharedCookieProjectId = await getPysSharedFromCookie().catch(
       () => null
     );
+    const guestNameCookie = await getPysGuestNameFromCookie().catch(
+      () => null
+    );
 
     if (!dbUserId) {
       // Demo guest (passkey join without a database session)
       const demoGuest = buildMockGuestSeedData(
         "guest-demo",
-        sharedCookieProjectId
+        sharedCookieProjectId,
+        guestNameCookie
       );
       if (demoGuest) return demoGuest;
       return { user: INITIAL_USER_PROFILE, domains: INITIAL_DOMAINS, tasks: INITIAL_TASKS, focusSessions: [] };
@@ -279,7 +290,7 @@ export async function fetchDashboardSeedData(): Promise<DashboardSeedData> {
 
     if (!dbUser) {
       // Cookie points at a demo guest id that has no DB record
-      const demoGuest = buildMockGuestSeedData(dbUserId, sharedCookieProjectId);
+      const demoGuest = buildMockGuestSeedData(dbUserId, sharedCookieProjectId, guestNameCookie);
       if (demoGuest) return demoGuest;
       return { user: INITIAL_USER_PROFILE, domains: INITIAL_DOMAINS, tasks: INITIAL_TASKS, focusSessions: [] };
     }
@@ -294,7 +305,7 @@ export async function fetchDashboardSeedData(): Promise<DashboardSeedData> {
       if (project && sharedProjectId) {
         const workspace = buildSharedWorkspace(dbUser.id, project);
         return {
-          user: buildGuestUserProfile(dbUser, sharedProjectId),
+          user: buildGuestUserProfile(dbUser, sharedProjectId, guestNameCookie),
           domains: workspace.domains,
           tasks: workspace.tasks,
           focusSessions: [],
@@ -303,7 +314,7 @@ export async function fetchDashboardSeedData(): Promise<DashboardSeedData> {
 
       // Guest without a resolvable project: minimal empty workspace
       return {
-        user: buildGuestUserProfile(dbUser, sharedProjectId ?? ""),
+        user: buildGuestUserProfile(dbUser, sharedProjectId ?? "", guestNameCookie),
         domains: [],
         tasks: [],
         focusSessions: [],

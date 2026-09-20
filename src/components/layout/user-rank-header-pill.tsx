@@ -9,13 +9,18 @@ export function UserRankHeaderPill() {
   const { user } = useApp();
 
   if (user.isAnonymous) {
+    const displayName =
+      user.callSign && user.callSign !== "Guest Collaborator"
+        ? `${user.callSign} (Guest)`
+        : "Guest Collaborator";
+
     return (
       <div className="hidden sm:flex items-center gap-2 bg-surface-container-lowest px-3 py-1.5 rounded-full border border-white/10 text-xs font-mono">
         <Users size={13} className="text-wellness-emerald" />
         <span className="text-outline uppercase tracking-wider text-[10px]">
           STATUS:
         </span>
-        <span className="text-white font-semibold">Guest Collaborator</span>
+        <span className="text-white font-semibold">{displayName}</span>
       </div>
     );
   }

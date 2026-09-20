@@ -59,7 +59,9 @@ export default function DashboardPage() {
             </span>
             <span className="text-white font-bold flex items-center gap-1">
               <Users size={13} className="text-wellness-emerald" />
-              Guest
+              {user.callSign && user.callSign !== "Guest Collaborator"
+                ? user.callSign
+                : "Guest"}
             </span>
           </div>
         </div>

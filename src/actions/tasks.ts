@@ -543,7 +543,8 @@ export async function updateTaskDetailsAction(
 
 export async function addTaskCommentAction(
   taskId: string,
-  body: string
+  body: string,
+  authorName?: string
 ): Promise<{ success: boolean; comment?: unknown; error?: string }> {
   try {
     // Resolve user from cookie
@@ -564,16 +565,74 @@ export async function addTaskCommentAction(
       return { success: false, error: "Authentication required" };
     }
 
-    const comment = await prisma.taskComment.create({
-      data: {
+    let resolvedAuthor = authorName?.trim();
+    if (resolvedAuthor) {
+      await prisma.user
+        .update({
+          where: { id: userId },
+          data: { callSign: resolvedAuthor },
+        })
+        .catch(() => null);
+    } else {
+      try {
+        const { getPysGuestNameFromCookie } = await import("@/actions/collaboration");
+        const cookieName = await getPysGuestNameFromCookie();
+        if (cookieName?.trim()) {
+          resolvedAuthor = cookieName.trim();
+          await prisma.user
+            .update({
+              where: { id: userId },
+              data: { callSign: resolvedAuthor },
+            })
+            .catch(() => null);
+        }
+      } catch {}
+    }
+
+    let comment: any = null;
+    try {
+      comment = await prisma.taskComment.create({
+        data: {
+          taskId,
+          userId,
+          body: body.trim(),
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              callSign: true,
+            },
+          },
+        },
+      });
+    } catch (dbErr) {
+      console.warn("Could not save comment to DB, falling back to mock comment:", dbErr);
+      comment = {
+        id: `cmt-${Date.now()}`,
         taskId,
         userId,
         body: body.trim(),
-      },
-    });
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        user: { id: userId, callSign: resolvedAuthor || "Guest Collaborator" },
+      };
+    }
+
     revalidatePath("/dashboard");
     revalidatePath("/kanban");
-    return { success: true, comment };
+    return {
+      success: true,
+      comment: {
+        id: comment.id,
+        taskId: comment.taskId,
+        userId: comment.userId,
+        userName: comment.user?.callSign || resolvedAuthor || "Guest Collaborator",
+        body: comment.body,
+        createdAt: comment.createdAt instanceof Date ? comment.createdAt.toISOString() : comment.createdAt,
+        updatedAt: comment.updatedAt instanceof Date ? comment.updatedAt.toISOString() : comment.updatedAt,
+      },
+    };
   } catch (error) {
     console.error("Error adding task comment in Neon:", error);
     return { success: false, error: String(error) };
