@@ -11,7 +11,7 @@ import {
   PYS_GUEST_AVATAR_COOKIE,
 } from "@/lib/collaboration";
 import { INITIAL_DOMAINS, INITIAL_TASKS } from "@/lib/mock-data";
-import { resolveSharedProjectById } from "@/lib/shared-project";
+import { resolveProjectTwinIds, resolveSharedProjectById } from "@/lib/shared-project";
 import { TaskItem, ProjectMember } from "@/types";
 
 /** Cookie tracking the current DB user (same cookie used by actions/auth.ts) */
@@ -639,8 +639,11 @@ export async function getProjectMembersAction(
     const guestName = cookieStore.get(PYS_GUEST_NAME_COOKIE)?.value ?? null;
     const guestAvatar = cookieStore.get(PYS_GUEST_AVATAR_COOKIE)?.value ?? null;
 
-    // Resolve the project to find the owner
+    // Resolve the project to find the owner and its equivalent ids. A shared
+    // project can be opened via a board, root task, or skill pet id (twins);
+    // members are scoped to any one of those ids, so union them all.
     const project = await resolveSharedProjectById(projectId).catch(() => null);
+    const memberProjectIds = await resolveProjectTwinIds(projectId).catch(() => [projectId]);
 
     const DEFAULT_AVATAR = "🐾";
 
@@ -672,7 +675,7 @@ export async function getProjectMembersAction(
     // --- Identify guest members (anonymous users scoped to this project) ---
     const guestUsers = await prisma.user
       .findMany({
-        where: { sharedProjectId: projectId, isAnonymous: true },
+        where: { sharedProjectId: { in: memberProjectIds }, isAnonymous: true },
         select: { id: true, callSign: true, avatar: true, createdAt: true },
         orderBy: { createdAt: "asc" },
       })
@@ -681,7 +684,7 @@ export async function getProjectMembersAction(
     // --- Identify full-account board members ---
     const boardMembers = await prisma.boardMember
       .findMany({
-        where: { boardId: projectId },
+        where: { boardId: { in: memberProjectIds } },
         include: { user: { select: { id: true, callSign: true, avatar: true, createdAt: true } } },
       })
       .catch(() => [] as { user: { id: string; callSign: string; avatar: string | null; createdAt: Date } }[]);

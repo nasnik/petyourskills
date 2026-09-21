@@ -59,8 +59,7 @@ export function mapDbTask(t: {
  */
 export async function resolveSharedProjectById(
   projectId: string
-): Promise<SharedProjectWithTasks | null> {
-  // 1. Kanban board
+): Promise<SharedProjectWithTasks | null> {  // 1. Kanban board
   const board = await prisma.kanbanBoard
     .findUnique({
       where: { id: projectId },
@@ -161,4 +160,71 @@ export async function resolveSharedProjectById(
   }
 
   return null;
+}
+
+/**
+ * Resolves the full set of equivalent project ids for a shared project.
+ *
+ * A project can exist as a KanbanBoard, a MULTI_TASK root Task, or a
+ * MULTI_TASK SkillPet — and a task/pet pair with the same title + domain share
+ * one board identity (cards and collaborator scope may live under EITHER id).
+ * Members are scoped to a single id via `sharedProjectId`, so queries must
+ * union every equivalent id regardless of which id the viewer opened.
+ *
+ * Returns a de-duplicated array containing the given id plus any twins.
+ */
+export async function resolveProjectTwinIds(projectId: string): Promise<string[]> {
+  const ids = new Set<string>([projectId]);
+
+  // 1. Kanban board — guests are scoped to the board id directly.
+  const board = await prisma.kanbanBoard
+    .findUnique({ where: { id: projectId }, select: { id: true } })
+    .catch(() => null);
+  if (board) return [board.id];
+
+  // 2. MULTI_TASK root task — union the twin skill pet with the same title.
+  const task = await prisma.task
+    .findUnique({ where: { id: projectId }, select: { id: true, domainId: true, title: true, repeatConfig: true } })
+    .catch(() => null);
+  if (task) {
+    ids.add(task.id);
+    const rc = task.repeatConfig as { engine?: string; frequency?: string } | null;
+    const isMultiTask = rc?.engine === "MULTI_TASK" || rc?.frequency === "multi_task";
+    if (isMultiTask) {
+      const twinPet = await prisma.skillPet
+        .findFirst({
+          where: {
+            domainId: task.domainId,
+            title: { equals: task.title, mode: "insensitive" },
+            planningEngineType: "MULTI_TASK",
+          },
+          select: { id: true },
+        })
+        .catch(() => null);
+      if (twinPet) ids.add(twinPet.id);
+    }
+    return [...ids];
+  }
+
+  // 3. MULTI_TASK skill pet — union the twin root task with the same title.
+  const pet = await prisma.skillPet
+    .findUnique({ where: { id: projectId }, select: { id: true, domainId: true, title: true } })
+    .catch(() => null);
+  if (pet) {
+    ids.add(pet.id);
+    const twinTasks = await prisma.task
+      .findMany({
+        where: { domainId: pet.domainId, title: { equals: pet.title, mode: "insensitive" } },
+        select: { id: true, repeatConfig: true },
+      })
+      .catch(() => [] as { id: string; repeatConfig: unknown }[]);
+    for (const t of twinTasks as { id: string; repeatConfig: { engine?: string; frequency?: string } | null }[]) {
+      if (t.repeatConfig?.engine === "MULTI_TASK" || t.repeatConfig?.frequency === "multi_task") {
+        ids.add(t.id);
+      }
+    }
+    return [...ids];
+  }
+
+  return [...ids];
 }
