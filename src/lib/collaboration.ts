@@ -5,6 +5,8 @@
  */
 
 export const PYS_GUEST_NAME_COOKIE = "pys_guest_name";
+export const PYS_GUEST_AVATAR_COOKIE = "pys_guest_avatar";
+
 
 /**
  * Derives the deterministic, memorable passcode for a project title.

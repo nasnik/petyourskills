@@ -107,4 +107,29 @@ export interface UserProfile {
   nextTierXp: number;
   isAnonymous?: boolean;
   sharedProjectId?: string | null;
+  /** Emoji avatar chosen by the user on join (e.g. "🐉"). */
+  avatar?: string;
+}
+
+/**
+ * A member of a shared project board.
+ * This is the foundation for:
+ *  - Team presence strip (current feature)
+ *  - Members chat & @mentions (next)
+ *  - Growing avatars based on board activity (next)
+ */
+export interface ProjectMember {
+  id: string;
+  name: string;
+  /** Emoji avatar chosen at join time. */
+  avatar: string;
+  /** True for the project owner / host. */
+  isHost: boolean;
+  /**
+   * Count of board actions (tasks created + completed).
+   * Seeds the visual "growth" ring on the avatar bubble and will
+   * power the growing-avatars XP system.
+   */
+  activityCount: number;
+  joinedAt: string; // ISO timestamp
 }

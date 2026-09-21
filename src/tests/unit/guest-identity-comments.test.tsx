@@ -142,7 +142,7 @@ describe("JoinForm - Guest Identity Requirements", () => {
     expect(submitBtn).toBeDisabled();
   });
 
-  it("submits code and cleanName to joinProjectWithPasskeyAction and remembers name", async () => {
+  it("submits code, cleanName, and avatar to joinProjectWithPasskeyAction and remembers name", async () => {
     mockJoinAction.mockResolvedValue({
       success: true,
       project: { id: "proj-1", title: "Project X", type: "BOARD", passCode: "CYS-8941" },
@@ -153,14 +153,18 @@ describe("JoinForm - Guest Identity Requirements", () => {
     const nameInput = screen.getByLabelText(/your name/i);
     fireEvent.change(nameInput, { target: { value: "David Miller" } });
 
+    // The avatar picker requires a selection before the form can submit.
+    fireEvent.click(screen.getByText("🦊"));
+
     const submitBtn = screen.getByRole("button", { name: /enter project workspace/i });
     fireEvent.click(submitBtn);
 
     await waitFor(() => {
-      expect(mockJoinAction).toHaveBeenCalledWith("CYS-8941", "David Miller");
+      expect(mockJoinAction).toHaveBeenCalledWith("CYS-8941", "David Miller", "🦊");
     });
 
     expect(localStorage.getItem("pys_guest_name")).toBe("David Miller");
+    expect(localStorage.getItem("pys_guest_avatar")).toBe("🦊");
     expect(mockPush).toHaveBeenCalledWith("/dashboard");
     expect(mockRefresh).toHaveBeenCalled();
   });

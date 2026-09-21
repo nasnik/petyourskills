@@ -138,17 +138,26 @@ export function AppProvider({
     return () => clearInterval(interval);
   }, []);
 
-  // Hydrate guest name from localStorage if session is anonymous and has generic name
+  // Hydrate guest name + avatar from localStorage if session is anonymous
   React.useEffect(() => {
-    if (user.isAnonymous && (!user.callSign || user.callSign === "Guest Collaborator")) {
+    if (user.isAnonymous) {
       try {
-        const saved = localStorage.getItem("pys_guest_name");
-        if (saved?.trim()) {
-          setUser((prev) => ({ ...prev, callSign: saved.trim() }));
+        if (!user.callSign || user.callSign === "Guest Collaborator") {
+          const saved = localStorage.getItem("pys_guest_name");
+          if (saved?.trim()) {
+            setUser((prev) => ({ ...prev, callSign: saved.trim() }));
+          }
+        }
+        if (!user.avatar) {
+          const savedAvatar = localStorage.getItem("pys_guest_avatar");
+          if (savedAvatar?.trim()) {
+            setUser((prev) => ({ ...prev, avatar: savedAvatar.trim() }));
+          }
         }
       } catch {}
     }
-  }, [user.isAnonymous, user.callSign]);
+  }, [user.isAnonymous, user.callSign, user.avatar]);
+
 
   // Multi-Task Project Kanban Workspace state
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);

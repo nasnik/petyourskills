@@ -10,6 +10,7 @@ model User {
   id              String         @id @default(uuid())
   email           String         @unique
   callSign        String         @map("call_sign")
+  avatar          String?        @map("avatar")
   rankTier        Int            @default(1) @map("rank_tier")
   totalXp         Int            @default(0) @map("total_xp")
   isAnonymous     Boolean        @default(false) @map("is_anonymous")

@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ShareModal } from "./share-modal";
+import { BoardMembersStrip } from "./board-members-strip";
 
 const COLUMNS: {
   id: "TODO" | "IN_PROGRESS" | "DONE";
@@ -361,6 +362,15 @@ export function ProjectKanbanBoard({ projectId }: ProjectKanbanBoardProps) {
             </button>
           </div>
         </div>
+      </div>
+
+      {/* Team Members Strip */}
+      <div className="bg-charcoal-surface/50 border border-white/8 rounded-xl px-4 py-2.5 flex items-center gap-3">
+        <BoardMembersStrip
+          projectId={projectId}
+          domainColor={domainColor}
+          hostAvatarSpecies={avatarName}
+        />
       </div>
 
       {/* 4 Columns Kanban Grid */}

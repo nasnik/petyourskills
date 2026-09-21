@@ -8,10 +8,11 @@ import {
   normalizePassCode,
   passCodesMatch,
   PYS_GUEST_NAME_COOKIE,
+  PYS_GUEST_AVATAR_COOKIE,
 } from "@/lib/collaboration";
 import { INITIAL_DOMAINS, INITIAL_TASKS } from "@/lib/mock-data";
 import { resolveSharedProjectById } from "@/lib/shared-project";
-import { TaskItem } from "@/types";
+import { TaskItem, ProjectMember } from "@/types";
 
 /** Cookie tracking the current DB user (same cookie used by actions/auth.ts) */
 const PYS_UID_COOKIE = "pys_uid";
@@ -46,7 +47,12 @@ export interface ResolvedProject {
   domainAvatarSpecies: string | null;
 }
 
-async function setGuestCookies(userId: string, projectId: string, guestName?: string) {
+async function setGuestCookies(
+  userId: string,
+  projectId: string,
+  guestName?: string,
+  guestAvatar?: string
+) {
   const cookieStore = await cookies();
   const opts = {
     httpOnly: true,
@@ -54,13 +60,16 @@ async function setGuestCookies(userId: string, projectId: string, guestName?: st
     path: "/",
     maxAge: 60 * 60 * 24 * 30, // 30 days
   };
+  const clientOpts = { ...opts, httpOnly: false };
   cookieStore.set(PYS_UID_COOKIE, userId, opts);
   cookieStore.set(PYS_SHARED_COOKIE, projectId, opts);
   if (guestName?.trim()) {
-    cookieStore.set(PYS_GUEST_NAME_COOKIE, guestName.trim(), {
-      ...opts,
-      httpOnly: false, // client-readable so join form and comments can prefill
-    });
+    // client-readable so join form and comments can prefill
+    cookieStore.set(PYS_GUEST_NAME_COOKIE, guestName.trim(), clientOpts);
+  }
+  if (guestAvatar?.trim()) {
+    // client-readable so the avatar is available immediately after redirect
+    cookieStore.set(PYS_GUEST_AVATAR_COOKIE, guestAvatar.trim(), clientOpts);
   }
 }
 
@@ -74,6 +83,12 @@ export async function getPysSharedFromCookie(): Promise<string | null> {
 export async function getPysGuestNameFromCookie(): Promise<string | null> {
   const cookieStore = await cookies();
   return cookieStore.get(PYS_GUEST_NAME_COOKIE)?.value ?? null;
+}
+
+/** Reads the remembered guest avatar cookie (server-side). */
+export async function getPysGuestAvatarFromCookie(): Promise<string | null> {
+  const cookieStore = await cookies();
+  return cookieStore.get(PYS_GUEST_AVATAR_COOKIE)?.value ?? null;
 }
 
 /**
@@ -194,7 +209,8 @@ function resolveMockProjectByPassCode(code: string): ResolvedProject | null {
  */
 export async function joinProjectWithPasskeyAction(
   passCode: string,
-  guestName?: string
+  guestName?: string,
+  guestAvatar?: string
 ): Promise<JoinProjectResult> {
   const code = passCode?.trim() ?? "";
   const cleanName = guestName?.trim() || "Guest Collaborator";
@@ -233,7 +249,15 @@ export async function joinProjectWithPasskeyAction(
             })
             .catch(() => null);
         }
-        await setGuestCookies(existing.id, project.id, cleanName !== "Guest Collaborator" ? cleanName : existing.callSign);
+        if (guestAvatar?.trim() && existing.avatar !== guestAvatar.trim()) {
+          await prisma.user
+            .update({
+              where: { id: existing.id },
+              data: { avatar: guestAvatar.trim() },
+            })
+            .catch(() => null);
+        }
+        await setGuestCookies(existing.id, project.id, cleanName !== "Guest Collaborator" ? cleanName : existing.callSign, guestAvatar);
         return {
           success: true,
           project: {
@@ -255,6 +279,7 @@ export async function joinProjectWithPasskeyAction(
       data: {
         email: guestEmail,
         callSign: cleanName,
+        avatar: guestAvatar?.trim() || null,
         rankTier: 1,
         totalXp: 0,
         isAnonymous: true,
@@ -276,7 +301,7 @@ export async function joinProjectWithPasskeyAction(
         .catch(() => {});
     }
 
-    await setGuestCookies(guest.id, project.id, cleanName);
+    await setGuestCookies(guest.id, project.id, cleanName, guestAvatar);
 
     return {
       success: true,
@@ -307,7 +332,8 @@ export async function joinProjectWithPasskeyAction(
     await setGuestCookies(
       `guest-demo-${normalizePassCode(code).toLowerCase()}`,
       mockProject.id,
-      cleanName
+      cleanName,
+      guestAvatar
     );
 
     return {
@@ -588,5 +614,144 @@ export async function getGuestSessionInfoAction(): Promise<GuestSessionInfo> {
     return { isGuest: true, projectId, projectTitle };
   } catch {
     return { isGuest: false };
+  }
+}
+
+/**
+ * Returns all members of a shared project board.
+ *
+ * Member list = host (project owner) + all anonymous/full users whose
+ * `sharedProjectId` matches + BoardMember records for full accounts.
+ *
+ * Each member carries an `activityCount` (tasks created + completed on this
+ * board) which seeds the visual growth ring and will power the growing-avatars
+ * XP system in a future release.
+ *
+ * Falls back gracefully when the DB is unavailable (returns only the current
+ * session user derived from cookies).
+ */
+export async function getProjectMembersAction(
+  projectId: string
+): Promise<{ success: boolean; members?: ProjectMember[]; error?: string }> {
+  try {
+    const cookieStore = await cookies();
+    const uid = cookieStore.get(PYS_UID_COOKIE)?.value ?? null;
+    const guestName = cookieStore.get(PYS_GUEST_NAME_COOKIE)?.value ?? null;
+    const guestAvatar = cookieStore.get(PYS_GUEST_AVATAR_COOKIE)?.value ?? null;
+
+    // Resolve the project to find the owner
+    const project = await resolveSharedProjectById(projectId).catch(() => null);
+
+    const DEFAULT_AVATAR = "🐾";
+
+    // --- Identify host ---
+    let hostMember: ProjectMember | null = null;
+    if (project?.ownerUserId) {
+      const hostUser = await prisma.user
+        .findUnique({
+          where: { id: project.ownerUserId },
+          select: { id: true, callSign: true, avatar: true, createdAt: true },
+        })
+        .catch(() => null);
+      if (hostUser) {
+        // Count tasks they have completed/created on this board
+        const hostActivity = await prisma.task
+          .count({ where: { boardId: projectId, isCompleted: true } })
+          .catch(() => 0);
+        hostMember = {
+          id: hostUser.id,
+          name: hostUser.callSign || "Host",
+          avatar: hostUser.avatar || DEFAULT_AVATAR,
+          isHost: true,
+          activityCount: hostActivity,
+          joinedAt: hostUser.createdAt.toISOString(),
+        };
+      }
+    }
+
+    // --- Identify guest members (anonymous users scoped to this project) ---
+    const guestUsers = await prisma.user
+      .findMany({
+        where: { sharedProjectId: projectId, isAnonymous: true },
+        select: { id: true, callSign: true, avatar: true, createdAt: true },
+        orderBy: { createdAt: "asc" },
+      })
+      .catch(() => [] as { id: string; callSign: string; avatar: string | null; createdAt: Date }[]);
+
+    // --- Identify full-account board members ---
+    const boardMembers = await prisma.boardMember
+      .findMany({
+        where: { boardId: projectId },
+        include: { user: { select: { id: true, callSign: true, avatar: true, createdAt: true } } },
+      })
+      .catch(() => [] as { user: { id: string; callSign: string; avatar: string | null; createdAt: Date } }[]);
+
+    // Merge guest + board member users, dedup by id
+    const allMemberUsers = [
+      ...guestUsers,
+      ...boardMembers.map((bm) => bm.user),
+    ].filter(
+      (u, i, arr) =>
+        arr.findIndex((x) => x.id === u.id) === i &&
+        u.id !== project?.ownerUserId
+    );
+
+    // Avatar resolution: prefer the avatar persisted on the user record, then
+    // the cookie value for the current session user, then the default paw.
+    const memberList: ProjectMember[] = allMemberUsers.map((u) => {
+      const isCurrentUser = u.id === uid;
+      const avatar = u.avatar || (isCurrentUser && guestAvatar ? guestAvatar : DEFAULT_AVATAR);
+      return {
+        id: u.id,
+        name: u.callSign || "Collaborator",
+        avatar,
+        isHost: false,
+        activityCount: 0, // TODO: per-member activity once schema supports it
+        joinedAt: u.createdAt.toISOString(),
+      };
+    });
+
+    const members: ProjectMember[] = [
+      ...(hostMember ? [hostMember] : []),
+      ...memberList,
+    ];
+
+    // If no DB records exist yet (demo mode), return just the current session user
+    if (members.length === 0 && uid) {
+      members.push({
+        id: uid,
+        name: guestName || "Guest Collaborator",
+        avatar: guestAvatar || DEFAULT_AVATAR,
+        isHost: false,
+        activityCount: 0,
+        joinedAt: new Date().toISOString(),
+      });
+    }
+
+    return { success: true, members };
+  } catch (error) {
+    console.error("[getProjectMembersAction] error:", error);
+    // Graceful fallback: return just this session's user from cookies
+    try {
+      const cookieStore = await cookies();
+      const uid = cookieStore.get(PYS_UID_COOKIE)?.value ?? "guest";
+      const guestName = cookieStore.get(PYS_GUEST_NAME_COOKIE)?.value ?? "Guest Collaborator";
+      const guestAvatar = cookieStore.get(PYS_GUEST_AVATAR_COOKIE)?.value ?? "🐾";
+      return {
+        success: true,
+        members: [
+          {
+            id: uid,
+            name: guestName,
+            avatar: guestAvatar,
+            isHost: false,
+            activityCount: 0,
+            joinedAt: new Date().toISOString(),
+          },
+        ],
+      };
+    } catch {
+      return { success: false, error: String(error) };
+    }
   }
 }
