@@ -27,6 +27,7 @@ import {
 import { cn } from "@/lib/utils";
 import { ShareModal } from "./share-modal";
 import { BoardMembersStrip } from "./board-members-strip";
+import { SquadChannel } from "./squad-channel";
 
 const COLUMNS: {
   id: "TODO" | "IN_PROGRESS" | "DONE";
@@ -198,6 +199,19 @@ export function ProjectKanbanBoard({ projectId }: ProjectKanbanBoardProps) {
       isCompleted,
       doneAt: isCompleted ? new Date().toISOString() : null,
     });
+
+    // Broadcast a system quest log to the Squad Channel when a card is
+    // completed on this board.
+    if (isCompleted) {
+      const doneTask = boardTasks.find((t) => t.id === draggableId);
+      if (doneTask) {
+        import("@/actions/chat")
+          .then(({ broadcastQuestCompleteAction }) =>
+            broadcastQuestCompleteAction(projectId, doneTask.title, doneTask.xpReward ?? 25)
+          )
+          .catch(() => {});
+      }
+    }
   };
 
   const handleCreateSubtask = (
@@ -238,7 +252,9 @@ export function ProjectKanbanBoard({ projectId }: ProjectKanbanBoardProps) {
   }
 
   return (
-    <div className="space-y-6 animate-in fade-in-20 duration-200">
+    <div className="flex gap-5 items-start animate-in fade-in-20 duration-200">
+      {/* Left: main board content */}
+      <div className="flex-1 min-w-0 space-y-6">
       {/* Top Navigation & Project Header Bar */}
       <div className="flex flex-col gap-4">
         {/* Back Link */}
@@ -626,6 +642,10 @@ export function ProjectKanbanBoard({ projectId }: ProjectKanbanBoardProps) {
         projectTitle={projectTitle}
         projectId={projectId}
       />
+      </div>
+
+      {/* Right: docked Squad Channel */}
+      <SquadChannel projectId={projectId} domainColor={domainColor} />
     </div>
   );
 }

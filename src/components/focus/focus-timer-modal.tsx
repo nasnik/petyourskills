@@ -27,6 +27,7 @@ export function FocusTimerModal() {
   const [earnedXp, setEarnedXp] = useState<number>(0);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const endTimeRef = useRef<number | null>(null);
   const prevOpenRef = useRef<boolean>(false);
   const currentTaskIdRef = useRef<string | null>(null);
 
@@ -50,13 +51,18 @@ export function FocusTimerModal() {
       setStartedAt(null);
       setSessionCompleted(false);
       setEarnedXp(0);
+      endTimeRef.current = null;
     }
 
     prevOpenRef.current = isFocusModalOpen;
   }, [isFocusModalOpen, focusTargetTask?.id]);
 
   const clearModalState = () => {
-    if (timerRef.current) clearInterval(timerRef.current);
+    endTimeRef.current = null;
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
     setFocusTargetTask(null);
     closeFocusModal();
     setIsRunning(false);
@@ -73,6 +79,12 @@ export function FocusTimerModal() {
   const displayDomain = domains.find((d) => d.id === displayTask?.domainId) || domains[0];
 
   const handleStart = () => {
+    if (remaining <= 0) {
+      setRemaining(selectedDuration);
+      endTimeRef.current = Date.now() + selectedDuration * 1000;
+    } else {
+      endTimeRef.current = Date.now() + remaining * 1000;
+    }
     if (!startedAt) {
       setStartedAt(new Date());
     }
@@ -80,10 +92,20 @@ export function FocusTimerModal() {
   };
 
   const handlePause = () => {
+    if (endTimeRef.current) {
+      const leftSec = Math.max(0, Math.ceil((endTimeRef.current - Date.now()) / 1000));
+      setRemaining(leftSec);
+      endTimeRef.current = null;
+    }
     setIsRunning(false);
   };
 
   const handleReset = () => {
+    endTimeRef.current = null;
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
     setIsRunning(false);
     setRemaining(selectedDuration);
     setStartedAt(null);
@@ -92,6 +114,7 @@ export function FocusTimerModal() {
 
   const handleSelectPreset = (minutes: number) => {
     if (isRunning) return;
+    endTimeRef.current = null;
     const dur = minutes * 60;
     setSelectedDuration(dur);
     setRemaining(dur);
@@ -99,7 +122,13 @@ export function FocusTimerModal() {
   };
 
   const handleSessionFinish = useCallback(() => {
+    endTimeRef.current = null;
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
     setIsRunning(false);
+    setRemaining(0);
     const xp = Math.max(50, Math.floor((selectedDuration / 60) * 5));
     setEarnedXp(xp);
     setSessionCompleted(true);
@@ -118,28 +147,66 @@ export function FocusTimerModal() {
   const finishRef = useRef(handleSessionFinish);
   finishRef.current = handleSessionFinish;
 
-  // Timer Tick
+  const updateTimer = useCallback(() => {
+    if (!endTimeRef.current) return;
+    const now = Date.now();
+    const leftMs = endTimeRef.current - now;
+    const leftSec = Math.max(0, Math.ceil(leftMs / 1000));
+
+    if (leftSec <= 0) {
+      setRemaining(0);
+      endTimeRef.current = null;
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      finishRef.current();
+    } else {
+      setRemaining(leftSec);
+    }
+  }, []);
+
+  // Timer Tick with wall-clock sync & visibilitychange listener
   useEffect(() => {
     if (isRunning) {
+      if (!endTimeRef.current) {
+        endTimeRef.current = Date.now() + remaining * 1000;
+      }
+
+      updateTimer();
+
       timerRef.current = setInterval(() => {
-        setRemaining((prev) => {
-          if (prev <= 1) {
-            if (timerRef.current) clearInterval(timerRef.current);
-            setTimeout(() => {
-              finishRef.current();
-            }, 0);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
+        updateTimer();
+      }, 500);
+
+      const handleSync = () => {
+        updateTimer();
+      };
+
+      document.addEventListener("visibilitychange", handleSync);
+      window.addEventListener("focus", handleSync);
+
+      return () => {
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+        }
+        document.removeEventListener("visibilitychange", handleSync);
+        window.removeEventListener("focus", handleSync);
+      };
     } else {
-      if (timerRef.current) clearInterval(timerRef.current);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
     }
     return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
     };
-  }, [isRunning]);
+  }, [isRunning, updateTimer]);
 
   if (!isFocusModalOpen) return null;
 

@@ -133,3 +133,35 @@ export interface ProjectMember {
   activityCount: number;
   joinedAt: string; // ISO timestamp
 }
+
+export type MessageType = "TEXT" | "SYSTEM_QUEST_LOG" | "COMPANION_EVENT";
+
+/**
+ * A Squad Channel message scoped to a shared project board.
+ * `TEXT` messages carry a sender's companion badge; `SYSTEM_QUEST_LOG`
+ * messages are automated quest-completion broadcasts.
+ */
+export interface BoardMessageItem {
+  id: string;
+  boardId: string;
+  userId: string;
+  userName?: string;
+  userAvatar?: string;
+  content: string;
+  type: MessageType;
+  /** Snapshot e.g. "Byte Fox Lv.80" bound to the sender's companion. */
+  companionBadge?: string | null;
+  /** Populated for SYSTEM_QUEST_LOG events. */
+  xpRewardYield?: number | null;
+  createdAt: string; // ISO timestamp
+}
+
+/** A squad member's presence snapshot used for presence telemetry. */
+export interface SquadPresence {
+  userId: string;
+  name: string;
+  avatar: string;
+  /** True while the member has an active deep-focus session running. */
+  isFocusing: boolean;
+  onlineAt: string; // ISO timestamp
+}

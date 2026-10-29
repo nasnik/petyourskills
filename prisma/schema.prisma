@@ -23,6 +23,7 @@ model User {
   ownedBoards   KanbanBoard[]  @relation("BoardOwner")
   memberships   BoardMember[]
   taskComments  TaskComment[]
+  boardMessages BoardMessage[]
 
   @@map("users")
 }
@@ -136,6 +137,47 @@ model TaskComment {
   user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("task_comments")
+}
+
+enum MessageType {
+  TEXT
+  SYSTEM_QUEST_LOG
+  COMPANION_EVENT
+}
+
+/// Squad Channel messages scoped to a shared project board.
+/// `boardId` is a polymorphic reference (KanbanBoard / root Task / SkillPet id)
+/// enforced at the application level — same pattern as Task.boardId — so chat
+/// attaches to any of the twin project identities.
+model BoardMessage {
+  id              String      @id @default(uuid())
+  boardId         String      @map("board_id")
+  userId          String      @map("user_id")
+  content         String
+  type            MessageType @default(TEXT) @map("type")
+  companionBadge  String?     @map("companion_badge")
+  xpRewardYield   Int?        @map("xp_reward_yield")
+  createdAt       DateTime    @default(now()) @map("created_at")
+
+  user            User        @relation(fields: [userId], references: [id])
+
+  @@index([boardId, createdAt])
+  @@map("board_messages")
+}
+
+/// Heartbeat-based presence for Squad Channel telemetry (online count and
+/// shared-focus detection). Each connected client upserts its row on a poll;
+/// rows with a recent lastSeenAt are treated as "online".
+model BoardPresence {
+  id        String    @id @default(uuid())
+  boardId   String    @map("board_id")
+  userId    String    @map("user_id")
+  isFocusing Boolean  @default(false) @map("is_focusing")
+  lastSeenAt DateTime @default(now()) @map("last_seen_at")
+
+  @@unique([boardId, userId])
+  @@index([boardId, lastSeenAt])
+  @@map("board_presence")
 }
 
 model FocusSession {
